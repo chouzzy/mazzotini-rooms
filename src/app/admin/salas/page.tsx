@@ -1,6 +1,7 @@
 import { Box, Heading, Text, Table, Badge, Button, Flex } from '@chakra-ui/react'
 import { prisma } from '@/lib/prisma' // Importamos nossa conexão direta
 
+export const dynamic = 'force-dynamic' // Garantir que a página seja sempre renderizada dinamicamente
 // Server Component: A função é async para poder esperar o banco de dados
 export default async function AdminSalasPage() {
   // 1. Busca os dados no Banco (Server-side)
