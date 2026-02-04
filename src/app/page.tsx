@@ -6,7 +6,7 @@ export default function Home() {
     <Box p={5}>
       <Heading>Bem-vindo ao Mazzotini Rooms</Heading>
       <Text mt={4}>Sistema de Agendamento</Text>
-      <Button colorPallete="blue" variant='solid' mt={4}>Entrar</Button>
+      <Button colorScheme="blue" variant='solid' mt={4}>Entrar</Button>
     </Box>
   )
 }
