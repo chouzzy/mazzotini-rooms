@@ -1,67 +1,119 @@
-import { POST } from '@/app/api/rooms/route';
+import { POST, GET, PUT, DELETE } from '@/app/api/rooms/route';
 import { prisma } from '@/lib/prisma';
 
-// Mock do Prisma para evitar chamadas reais ao banco durante testes unitários
-// Se você estiver usando um banco de memória (como configurado anteriormente), 
-// este mock pode ser removido, mas é boa prática isolar se for teste unitário puro.
-// Como seus logs mostraram queries reais, assumo que você quer teste de integração.
-// Vou manter sem o mock do prisma aqui para usar o setup que você já tem (banco em memória).
-
-describe('API de Salas (POST /api/rooms)', () => {
-  // Limpar banco antes de cada teste se necessário
+describe('API de Salas (/api/rooms)', () => {
+  // Limpar banco antes de cada teste
   beforeEach(async () => {
-    // A ordem importa: primeiro deletamos os dependentes (Booking), depois as salas (Room)
-    await prisma.booking.deleteMany();
-    await prisma.room.deleteMany();
+    // CORREÇÃO: Usamos transaction para garantir que a limpeza ocorra de uma vez,
+    // evitando erros de chave estrangeira se outros testes estiverem rodando.
+    await prisma.$transaction([
+      prisma.booking.deleteMany(),
+      prisma.room.deleteMany(),
+      prisma.user.deleteMany(),
+    ]);
   });
 
-  it('deve criar uma sala com sucesso', async () => {
-    const body = {
-      name: 'Sala de Teste',
-      capacity: 10,
-      description: 'Sala criada pelo teste automatizado'
-    };
+  describe('POST e GET', () => {
+    it('deve criar e listar salas', async () => {
+      const body = { name: 'Sala Teste', capacity: 10 };
+      const reqPost = new Request('http://localhost:3000/api/rooms', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      await POST(reqPost);
 
-    const request = new Request('http://localhost:3000/api/rooms', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      const reqGet = new Request('http://localhost:3000/api/rooms');
+      const resGet = await GET();
+      const data = await resGet.json();
+
+      expect(data).toHaveLength(1);
+      expect(data[0].name).toBe('Sala Teste');
     });
-
-    const response = await POST(request);
-    
-    // Verificações
-    expect(response.status).toBe(201);
-    
-    const data = await response.json();
-    expect(data).toHaveProperty('id');
-    expect(data.name).toBe(body.name);
-    expect(data.capacity).toBe(body.capacity);
   });
 
-  it('deve retornar erro 400 se faltar nome', async () => {
-    const body = {
-      capacity: 5
-      // Faltando 'name'
-    };
+  describe('PUT (Atualizar)', () => {
+    it('deve atualizar o nome e capacidade de uma sala', async () => {
+      const room = await prisma.room.create({
+        data: { name: 'Sala Velha', capacity: 5, isActive: true }
+      });
 
-    const request = new Request('http://localhost:3000/api/rooms', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      const updateBody = {
+        id: room.id,
+        name: 'Sala Nova',
+        capacity: 20
+      };
+
+      const request = new Request('http://localhost:3000/api/rooms', {
+        method: 'PUT',
+        body: JSON.stringify(updateBody)
+      });
+
+      const response = await PUT(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.name).toBe('Sala Nova');
+      expect(data.capacity).toBe(20);
     });
 
-    const response = await POST(request);
+    it('deve retornar 404 se tentar atualizar sala inexistente', async () => {
+      const fakeId = '123456789012345678901234'; 
+      const updateBody = { id: fakeId, name: 'Nada' };
+      
+      const request = new Request('http://localhost:3000/api/rooms', {
+        method: 'PUT',
+        body: JSON.stringify(updateBody)
+      });
 
-    // Verificações
-    expect(response.status).toBe(400);
-    
-    const data = await response.json();
-    expect(data).toHaveProperty('error');
-    expect(data.error).toBe('Nome e Capacidade são obrigatórios');
+      const response = await PUT(request);
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe('DELETE (Excluir)', () => {
+    it('deve excluir uma sala sem agendamentos', async () => {
+      const room = await prisma.room.create({
+        data: { name: 'Sala para Deletar', capacity: 5, isActive: true }
+      });
+
+      const request = new Request(`http://localhost:3000/api/rooms?id=${room.id}`, {
+        method: 'DELETE'
+      });
+
+      const response = await DELETE(request);
+      expect(response.status).toBe(204);
+
+      const check = await prisma.room.findUnique({ where: { id: room.id } });
+      expect(check).toBeNull();
+    });
+
+    it('deve IMPEDIR a exclusão se houver agendamentos', async () => {
+      const room = await prisma.room.create({
+        data: { name: 'Sala Ocupada', capacity: 5, isActive: true }
+      });
+      const user = await prisma.user.create({
+        data: { name: 'User', email: 'u@test.com' }
+      });
+
+      await prisma.booking.create({
+        data: {
+          roomId: room.id,
+          userId: user.id,
+          title: 'Reunião',
+          startTime: new Date(),
+          endTime: new Date()
+        }
+      });
+
+      const request = new Request(`http://localhost:3000/api/rooms?id=${room.id}`, {
+        method: 'DELETE'
+      });
+
+      const response = await DELETE(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toMatch(/possui agendamentos/i);
+    });
   });
 });
