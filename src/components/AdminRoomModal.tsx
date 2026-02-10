@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, ChangeEvent } from 'react';
+import { useState, ChangeEvent, useEffect } from 'react';
 import {
   Dialog,
   Button,
@@ -17,22 +17,55 @@ import {
 import { LuImagePlus, LuX } from "react-icons/lu";
 import { toaster } from './ui/toaster';
 
+// Interface local (idealmente estaria em types/index.ts, mas mantemos aqui pela simplicidade do MVP)
+interface Room {
+  id: string;
+  name: string;
+  capacity: number;
+  description: string;
+  isActive: boolean;
+  imageUrl?: string;
+}
+
 interface AdminRoomModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  roomToEdit?: Room | null; // Nova prop opcional
 }
 
-export default function AdminRoomModal({ isOpen, onClose, onSuccess }: AdminRoomModalProps) {
+export default function AdminRoomModal({ isOpen, onClose, onSuccess, roomToEdit }: AdminRoomModalProps) {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   
+  // Estados do Formulário
   const [name, setName] = useState('');
   const [capacity, setCapacity] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [isActive, setIsActive] = useState(true);
 
-  // Upload automático ao selecionar o arquivo
+  // Efeito para carregar dados quando o modal abre
+  useEffect(() => {
+    if (isOpen) {
+      if (roomToEdit) {
+        // Modo Edição: Preenche com dados existentes
+        setName(roomToEdit.name);
+        setCapacity(roomToEdit.capacity.toString());
+        setDescription(roomToEdit.description || '');
+        setImageUrl(roomToEdit.imageUrl || '');
+        setIsActive(roomToEdit.isActive);
+      } else {
+        // Modo Criação: Limpa tudo
+        setName('');
+        setCapacity('');
+        setDescription('');
+        setImageUrl('');
+        setIsActive(true);
+      }
+    }
+  }, [isOpen, roomToEdit]);
+
   const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -79,27 +112,38 @@ export default function AdminRoomModal({ isOpen, onClose, onSuccess }: AdminRoom
 
     setLoading(true);
     try {
+      // Decide se é POST (Criar) ou PUT (Atualizar)
+      const method = roomToEdit ? 'PUT' : 'POST';
+      
+      const body: any = {
+        name,
+        capacity: Number(capacity),
+        description,
+        imageUrl,
+        isActive
+      };
+
+      // Se for edição, precisamos enviar o ID
+      if (roomToEdit) {
+        body.id = roomToEdit.id;
+      }
+
       const res = await fetch('/api/rooms', {
-        method: 'POST',
+        method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          capacity: Number(capacity),
-          description,
-          imageUrl, // Agora enviamos a URL do Spaces, não o Base64
-        }),
+        body: JSON.stringify(body),
       });
 
-      if (!res.ok) throw new Error('Falha ao criar sala');
+      if (!res.ok) throw new Error(`Falha ao ${roomToEdit ? 'atualizar' : 'criar'} sala`);
 
       toaster.create({
         title: 'Sucesso',
-        description: 'Sala cadastrada com sucesso!',
+        description: `Sala ${roomToEdit ? 'atualizada' : 'cadastrada'} com sucesso!`,
         type: 'success',
       });
 
       onSuccess();
-      handleClose();
+      onClose(); // Não limpamos manualmente aqui pois o useEffect cuida disso ao reabrir
     } catch (error) {
       toaster.create({
         title: 'Erro',
@@ -110,21 +154,13 @@ export default function AdminRoomModal({ isOpen, onClose, onSuccess }: AdminRoom
     }
   };
 
-  const handleClose = () => {
-    setName('');
-    setCapacity('');
-    setDescription('');
-    setImageUrl('');
-    onClose();
-  };
-
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(e) => !e.open && handleClose()} size="lg">
+    <Dialog.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()} size="lg">
       <Dialog.Backdrop />
       <Dialog.Positioner>
         <Dialog.Content>
           <Dialog.Header>
-            <Dialog.Title>Cadastrar Nova Sala</Dialog.Title>
+            <Dialog.Title>{roomToEdit ? 'Editar Sala' : 'Cadastrar Nova Sala'}</Dialog.Title>
           </Dialog.Header>
           <Dialog.CloseTrigger />
           
@@ -143,6 +179,32 @@ export default function AdminRoomModal({ isOpen, onClose, onSuccess }: AdminRoom
               <Field.Root>
                 <Field.Label>Descrição</Field.Label>
                 <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Detalhes da sala..." />
+              </Field.Root>
+
+              {/* Campo de Status (Ativa/Inativa) */}
+              <Field.Root>
+                 <Field.Label>Status</Field.Label>
+                 <Box 
+                   as="label" 
+                   display="flex" 
+                   alignItems="center" 
+                   cursor="pointer" 
+                   gap={3}
+                   borderWidth="1px"
+                   borderRadius="md"
+                   p={3}
+                   _hover={{ bg: "bg.subtle" }}
+                 >
+                   <input 
+                     type="checkbox" 
+                     checked={isActive} 
+                     onChange={(e) => setIsActive(e.target.checked)}
+                     style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                   />
+                   <Box as="span" fontWeight="medium" fontSize="sm">
+                     Sala Ativa (Disponível para reservas)
+                   </Box>
+                 </Box>
               </Field.Root>
 
               <Field.Root>
@@ -201,14 +263,14 @@ export default function AdminRoomModal({ isOpen, onClose, onSuccess }: AdminRoom
           </Dialog.Body>
 
           <Dialog.Footer>
-            <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
+            <Button variant="ghost" onClick={onClose}>Cancelar</Button>
             <Button 
               colorPalette="blue" 
               onClick={handleSubmit} 
               loading={loading}
-              disabled={uploadingImage} // Impede salvar enquanto faz upload
+              disabled={uploadingImage}
             >
-              Salvar Sala
+              {roomToEdit ? 'Atualizar Sala' : 'Salvar Sala'}
             </Button>
           </Dialog.Footer>
         </Dialog.Content>

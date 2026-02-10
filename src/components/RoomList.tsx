@@ -13,9 +13,15 @@ import {
   Stack,
   Button,
   Separator,
-  Center
+  Center,
+  Image,
+  Flex,
+  Link as ChakraLink, // Renomeado para evitar conflito
+  Link
 } from '@chakra-ui/react';
+import { LuPlus } from "react-icons/lu";
 import BookingModal from './BookingModal';
+import AdminRoomModal from './AdminRoomModal';
 
 interface Room {
   id: string;
@@ -23,6 +29,7 @@ interface Room {
   capacity: number;
   description: string;
   isActive: boolean;
+  imageUrl?: string; 
 }
 
 export default function RoomList() {
@@ -30,8 +37,9 @@ export default function RoomList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Controle do Modal (UseState padrão já que useDisclosure pode não estar disponível ou ser diferente dependendo da config do v3)
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Modais
+  const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
   const fetchRooms = async () => {
@@ -41,7 +49,7 @@ export default function RoomList() {
       const data = await res.json();
       setRooms(data);
     } catch (err) {
-      setError('Erro ao carregar as salas. Tente novamente mais tarde.');
+      setError('Erro ao carregar as salas.');
       console.error(err);
     } finally {
       setLoading(false);
@@ -54,11 +62,7 @@ export default function RoomList() {
 
   const handleBooking = (room: Room) => {
     setSelectedRoom(room);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
+    setIsBookingOpen(true);
   };
 
   if (loading) {
@@ -79,80 +83,102 @@ export default function RoomList() {
     );
   }
 
-  if (rooms.length === 0) {
-    return (
-      <Box textAlign="center" py={10} bg="gray.50" borderRadius="md">
-        <Text fontSize="lg" color="gray.600">Nenhuma sala encontrada.</Text>
-      </Box>
-    );
-  }
-
   return (
-    <Box mt={8}>
-      <Heading size="md" mb={6}>Salas Disponíveis</Heading>
+    <Box mt={8} position="relative">
+      <Flex justify="space-between" align="center" mb={6}>
+        <Heading size="md">Salas Disponíveis</Heading>
+        <Button size="sm" variant="outline" onClick={() => setIsAdminOpen(true)}>
+          <LuPlus /> Nova Sala
+        </Button>
+      </Flex>
       
-      {/* SimpleGrid continua existindo, mas properties podem variar. 
-          minChildWidth ou columns funcionam bem. */}
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={6}>
-        {rooms.map((room) => (
-          // Card v3 usa sintaxe composta: Card.Root, Card.Header, etc.
-          <Card.Root key={room.id} variant="outline" _hover={{ shadow: 'md', transition: 'shadow 0.2s' }}>
-            <Card.Header>
-              <Stack direction="row" justify="space-between" align="center">
-                <Heading size="md">{room.name}</Heading>
-                {/* colorScheme mudou para colorPalette no v3 */}
-                <Badge colorPalette={room.isActive ? 'green' : 'red'}>
-                  {room.isActive ? 'Ativa' : 'Inativa'}
-                </Badge>
-              </Stack>
-            </Card.Header>
-            <Card.Body>
-              <Stack gap={4}>
-                <Box>
-                  <Heading size='xs' textTransform='uppercase' color="fg.muted">
-                    Capacidade
-                  </Heading>
-                  <Text pt='1' fontSize='sm'>
-                    {room.capacity} Pessoas
-                  </Text>
+      {rooms.length === 0 ? (
+        <Box textAlign="center" py={10} bg="gray.50" borderRadius="md">
+          <Text fontSize="lg" color="gray.600">Nenhuma sala cadastrada.</Text>
+        </Box>
+      ) : (
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={6}>
+          {rooms.map((room) => (
+            <Card.Root key={room.id} variant="outline" overflow="hidden" _hover={{ shadow: 'md', transition: 'shadow 0.2s' }}>
+              {/* Imagem de Capa com Link */}
+              <Link href={`/salas/${room.id}`} >
+                <Box height="160px" bg="gray.100" position="relative" cursor="pointer">
+                  {room.imageUrl ? (
+                    <Image src={room.imageUrl} alt={room.name} objectFit="cover" w="full" h="full" />
+                  ) : (
+                    <Center h="full" color="gray.400" fontSize="sm">
+                      Sem Imagem
+                    </Center>
+                  )}
+                  <Badge 
+                    position="absolute" 
+                    top={2} 
+                    right={2} 
+                    colorPalette={room.isActive ? 'green' : 'red'}
+                  >
+                    {room.isActive ? 'Ativa' : 'Inativa'}
+                  </Badge>
                 </Box>
-                
-                {/* StackDivider foi removido em favor do componente Separator */}
-                <Separator />
-                
-                <Box>
-                  <Heading size='xs' textTransform='uppercase' color="fg.muted">
-                    Descrição
-                  </Heading>
-                  <Text pt='1' fontSize='sm'>
-                    {room.description || 'Sem descrição'}
-                  </Text>
-                </Box>
-                
-                {/* Botão de Reservar */}
-                <Button 
-                  colorPalette="blue" 
-                  width="full" 
-                  mt={4}
-                  onClick={() => handleBooking(room)}
-                  disabled={!room.isActive}
-                >
-                  Reservar
-                </Button>
-              </Stack>
-            </Card.Body>
-          </Card.Root>
-        ))}
-      </SimpleGrid>
+              </Link>
 
-      {/* Modal de Agendamento */}
+              <Card.Header pb={2}>
+                <Link href={`/salas/${room.id}`} >
+                  <ChakraLink _hover={{ textDecoration: 'none', color: 'blue.600' }}>
+                    <Heading size="md" cursor="pointer">{room.name}</Heading>
+                  </ChakraLink>
+                </Link>
+              </Card.Header>
+
+              <Card.Body>
+                <Stack gap={3}>
+                  <Flex justify="space-between" fontSize="sm">
+                    <Text color="fg.muted">Capacidade:</Text>
+                    <Text fontWeight="medium">{room.capacity} Pessoas</Text>
+                  </Flex>
+                  
+                  <Text fontSize="sm" color="fg.muted" lineClamp={2} minH="40px">
+                    {room.description || 'Sem descrição disponível.'}
+                  </Text>
+                  
+                  <Separator />
+                  
+                  <Flex gap={2}>
+                    {/* Botão Ver Detalhes */}
+                    <Link href={`/salas/${room.id}`} >
+                      <Button variant="outline" flex="1" size="sm">
+                        Detalhes
+                      </Button>
+                    </Link>
+
+                    {/* Botão Reservar */}
+                    <Button 
+                      colorPalette="blue" 
+                      flex="1"
+                      size="sm"
+                      onClick={() => handleBooking(room)}
+                      disabled={!room.isActive}
+                    >
+                      Reservar
+                    </Button>
+                  </Flex>
+                </Stack>
+              </Card.Body>
+            </Card.Root>
+          ))}
+        </SimpleGrid>
+      )}
+
       <BookingModal 
-        isOpen={isModalOpen} 
-        onClose={handleCloseModal} 
+        isOpen={isBookingOpen} 
+        onClose={() => setIsBookingOpen(false)} 
         selectedRoom={selectedRoom} 
-        onSuccess={() => {
-            // Recarrega ou apenas fecha
-        }}
+        onSuccess={() => {}}
+      />
+
+      <AdminRoomModal 
+        isOpen={isAdminOpen} 
+        onClose={() => setIsAdminOpen(false)} 
+        onSuccess={fetchRooms} 
       />
     </Box>
   );

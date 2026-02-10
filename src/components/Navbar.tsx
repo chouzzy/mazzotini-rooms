@@ -1,7 +1,6 @@
 'use client';
 
 import { Box, Flex, Button, Link as ChakraLink, Stack, Container } from '@chakra-ui/react';
-import Link from 'next/link';
 import { LuCalendarDays, LuLayoutDashboard, LuCalendarClock } from "react-icons/lu";
 
 export default function Navbar() {
@@ -10,31 +9,29 @@ export default function Navbar() {
       <Container maxW="6xl">
         <Flex h={16} alignItems="center" justifyContent="space-between">
           {/* Logo / Título */}
-          <Link href="/" passHref legacyBehavior>
-            <ChakraLink _hover={{ textDecoration: 'none' }} fontSize="xl" fontWeight="bold">
+          <ChakraLink href="/"  _hover={{ textDecoration: 'none' }} fontSize="xl" fontWeight="bold">
               Mazzotini Rooms
-            </ChakraLink>
-          </Link>
+          </ChakraLink>
 
           {/* Menu Desktop */}
           <Stack direction="row" gap={2}>
-            <Link href="/" passHref legacyBehavior>
+            <ChakraLink href="/">
               <Button variant="ghost" size="sm">
                 <LuLayoutDashboard /> Salas
               </Button>
-            </Link>
+            </ChakraLink>
             
-            <Link href="/calendario" passHref legacyBehavior>
+            <ChakraLink href="/calendario">
               <Button variant="ghost" size="sm">
                 <LuCalendarClock /> Calendário
               </Button>
-            </Link>
+            </ChakraLink>
 
-            <Link href="/minhas-reservas" passHref legacyBehavior>
+            <ChakraLink href="/minhas-reservas">
               <Button variant="ghost" size="sm">
                 <LuCalendarDays /> Minhas Reservas
               </Button>
-            </Link>
+            </ChakraLink>
           </Stack>
         </Flex>
       </Container>
