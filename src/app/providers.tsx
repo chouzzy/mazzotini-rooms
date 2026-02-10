@@ -1,14 +1,22 @@
 'use client'
 
 import { ChakraProvider } from '@chakra-ui/react'
-import { system } from '../theme' // Importamos nosso tema criado acima
+import { system } from '../theme'
 import { Toaster } from '@/components/ui/toaster'
+import { useState, useEffect } from 'react'
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+
+  // useEffect roda apenas no cliente após a primeira renderização
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   return (
-    // Trocamos o 'defaultSystem' pelo nosso 'system'
     <ChakraProvider value={system}>
-      <Toaster />
+      {/* Só renderiza o Toaster quando estivermos no navegador (mounted) */}
+      {mounted && <Toaster />}
       {children}
     </ChakraProvider>
   )

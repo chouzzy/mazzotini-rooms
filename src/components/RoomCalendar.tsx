@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { pt } from 'date-fns/locale/pt'; // Localização em Português
-import { Box, Spinner, Center, Text,  } from '@chakra-ui/react';
+import { Box, Spinner, Center } from '@chakra-ui/react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 
 // Configuração do localizador (datas em PT)
@@ -75,13 +75,6 @@ export default function RoomCalendar() {
       p={4} 
       borderRadius="lg" 
       borderWidth="1px"
-      css={{
-        /* Personalização básica do calendário para combinar com o Chakra */
-        '.rbc-calendar': { fontFamily: 'inherit' },
-        '.rbc-event': { backgroundColor: '#3182ce' },
-        '.rbc-today': { backgroundColor: '#f7fafc' },
-        '.rbc-header': { padding: '8px', fontWeight: 'bold', color: 'gray.600' }
-      }}
     >
       <Calendar
         localizer={localizer}

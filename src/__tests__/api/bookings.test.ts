@@ -223,7 +223,7 @@ describe('API de Agendamentos', () => {
 
       expect(response.status).toBe(400);
       const data = await response.json();
-      expect(data.error).toBe('ID do agendamento é obrigatório');
+      expect(data.error).toBe('ID é obrigatório');
     });
   });
 });

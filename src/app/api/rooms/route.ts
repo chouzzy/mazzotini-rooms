@@ -21,7 +21,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, capacity, description } = body;
+    const { name, capacity, description, imageUrl } = body;
 
     if (!name || !capacity) {
       return new Response(
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
         capacity: Number(capacity),
         description,
         isActive: true,
+        imageUrl,
       },
     });
 
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, name, capacity, description, isActive } = body;
+    const { id, name, capacity, description, isActive, imageUrl } = body;
 
     if (!id) {
       return new Response(
@@ -71,6 +72,7 @@ export async function PUT(request: Request) {
         capacity: capacity ? Number(capacity) : undefined,
         description: description || undefined,
         isActive: isActive !== undefined ? isActive : undefined,
+        imageUrl: imageUrl || undefined,
       },
     });
 

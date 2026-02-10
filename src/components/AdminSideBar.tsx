@@ -1,11 +1,10 @@
 'use client'
 
-import { Box, VStack, Text, Flex } from '@chakra-ui/react'
-import Link from 'next/link'
+import { Box, VStack, Text, Flex, Link } from '@chakra-ui/react'
 import { usePathname } from 'next/navigation'
 
 const MENU_ITEMS = [
-  { label: 'Dashboard', href: '/admin', icon: '📊' },
+  { label: 'Dashboard', href: '/admin/dashboard', icon: '📊' },
   { label: 'Salas', href: '/admin/salas', icon: '🏠' },
   { label: 'Usuários', href: '/admin/usuarios', icon: '👥' },
   { label: 'Reservas', href: '/admin/reservas', icon: '📅' },

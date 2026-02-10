@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { createOnlineMeeting } from '@/lib/microsoftGraph';
+import { sendApprovalEmail, sendRejectionEmail } from '@/lib/email';
+import { BookingStatus } from '@prisma/client';
 
 // LISTAR AGENDAMENTOS (GET)
 export async function GET(request: Request) {
@@ -7,17 +9,15 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const roomId = searchParams.get('roomId');
     const email = searchParams.get('email');
+    const status = searchParams.get('status');
 
     const where: any = {};
     
-    if (roomId) {
-      where.roomId = roomId;
-    }
-
-    if (email) {
-      where.user = {
-        email: email
-      };
+    if (roomId) where.roomId = roomId;
+    if (email) where.user = { email: email };
+    
+    if (status && Object.values(BookingStatus).includes(status as BookingStatus)) {
+      where.status = status as BookingStatus;
     }
 
     const bookings = await prisma.booking.findMany({
@@ -48,7 +48,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { roomId, userId, title, startTime, endTime } = body;
 
-    // 1. Validação
     if (!roomId || !userId || !title || !startTime || !endTime) {
       return new Response(
         JSON.stringify({ error: 'Todos os campos são obrigatórios' }),
@@ -66,10 +65,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Verificar Conflito
     const conflictingBooking = await prisma.booking.findFirst({
       where: {
         roomId: roomId,
+        status: { notIn: [BookingStatus.REJECTED, BookingStatus.CANCELLED] }, 
         AND: [
           { startTime: { lt: end } },
           { endTime: { gt: start } }
@@ -84,23 +83,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Integração com Microsoft Teams
     let onlineMeetingUrl = null;
-    
-    // Tenta criar a reunião, mas não bloqueia o agendamento se falhar (falha graciosa)
-    // ou bloqueia se for requisito obrigatório. Aqui, vamos apenas logar o erro.
     try {
-      // Verifica se as variáveis de ambiente do Teams estão configuradas antes de tentar
       if (process.env.AZURE_AD_CLIENT_ID && process.env.TEAMS_ORGANIZER_ID) {
         const meeting = await createOnlineMeeting(title, start, end);
         onlineMeetingUrl = meeting.joinWebUrl;
       }
     } catch (teamsError) {
       console.error("Falha ao criar reunião no Teams:", teamsError);
-      // Opcional: Adicionar aviso na resposta, mas prosseguir com o agendamento da sala física
     }
 
-    // 4. Salvar no Banco
     const booking = await prisma.booking.create({
       data: {
         roomId,
@@ -108,7 +100,7 @@ export async function POST(request: Request) {
         title,
         startTime: start,
         endTime: end,
-        onlineMeetingUrl, // Salva o link se tiver sido gerado
+        onlineMeetingUrl,
       },
     });
 
@@ -126,19 +118,58 @@ export async function POST(request: Request) {
   }
 }
 
-// CANCELAR AGENDAMENTO (DELETE)
+// ATUALIZAR STATUS (PUT)
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, status } = body;
+
+    if (!id || !Object.values(BookingStatus).includes(status)) {
+      return new Response(
+        JSON.stringify({ error: 'ID e Status válido são obrigatórios' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: { user: true, room: true }
+    });
+
+    if (!booking) {
+      return new Response(JSON.stringify({ error: 'Agendamento não encontrado' }), { status: 404 });
+    }
+
+    const updatedBooking = await prisma.booking.update({
+      where: { id },
+      data: { status: status as BookingStatus }
+    });
+
+    if (booking.user.email) {
+      if (status === BookingStatus.CONFIRMED) {
+        await sendApprovalEmail(booking.user.email, booking.title, booking.room.name);
+      } else if (status === BookingStatus.REJECTED) {
+        await sendRejectionEmail(booking.user.email, booking.title);
+      }
+    }
+
+    return new Response(JSON.stringify(updatedBooking), { status: 200 });
+
+  } catch (error) {
+    console.error('Erro ao atualizar agendamento:', error);
+    return new Response(JSON.stringify({ error: 'Erro interno' }), { status: 500 });
+  }
+}
+
+// DELETE (CORRIGIDO)
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (!id) {
-      return new Response(
-        JSON.stringify({ error: 'ID do agendamento é obrigatório' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    if (!id) return new Response(JSON.stringify({ error: 'ID é obrigatório' }), { status: 400 });
 
+    // CORREÇÃO: Verificar se existe antes de tentar deletar
     const booking = await prisma.booking.findUnique({
       where: { id },
     });
@@ -150,17 +181,11 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.booking.delete({
-      where: { id },
-    });
-
+    await prisma.booking.delete({ where: { id } });
+    
     return new Response(null, { status: 204 });
-
   } catch (error) {
-    console.error('Erro ao deletar agendamento:', error);
-    return new Response(
-      JSON.stringify({ error: 'Erro interno ao deletar agendamento' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    console.error('Erro ao deletar:', error);
+    return new Response(JSON.stringify({ error: 'Erro interno' }), { status: 500 });
   }
 }
