@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { 
-  Box, 
-  SimpleGrid, 
-  Heading, 
-  Text, 
-  Badge, 
-  Spinner, 
-  Alert, 
+import {
+  Box,
+  SimpleGrid,
+  Heading,
+  Text,
+  Badge,
+  Spinner,
+  Alert,
   Card,
   Stack,
   Button,
@@ -29,7 +29,7 @@ interface Room {
   capacity: number;
   description: string;
   isActive: boolean;
-  imageUrl?: string; 
+  imageUrl?: string;
 }
 
 export default function RoomList() {
@@ -91,7 +91,7 @@ export default function RoomList() {
           <LuPlus /> Nova Sala
         </Button>
       </Flex>
-      
+
       {rooms.length === 0 ? (
         <Box textAlign="center" py={10} bg="gray.50" borderRadius="md">
           <Text fontSize="lg" color="gray.600">Nenhuma sala cadastrada.</Text>
@@ -102,30 +102,22 @@ export default function RoomList() {
             <Card.Root key={room.id} variant="outline" overflow="hidden" _hover={{ shadow: 'md', transition: 'shadow 0.2s' }}>
               {/* Imagem de Capa com Link */}
               <Link href={`/salas/${room.id}`} >
-                <Box height="160px" bg="gray.100" position="relative" cursor="pointer">
-                  {room.imageUrl ? (
-                    <Image src={room.imageUrl} alt={room.name} objectFit="cover" w="full" h="full" />
-                  ) : (
-                    <Center h="full" color="gray.400" fontSize="sm">
-                      Sem Imagem
-                    </Center>
-                  )}
-                  <Badge 
-                    position="absolute" 
-                    top={2} 
-                    right={2} 
+                <Flex bgSize={'cover'} position="relative" cursor="pointer" w='100%'>
+                    <Image src={room.imageUrl ?? '/mock-room.jpg'} alt={room.name} objectFit="cover" objectPosition={'center'} maxH={200} w='100%' />
+                  <Badge
+                    position="absolute"
+                    top={2}
+                    right={2}
                     colorPalette={room.isActive ? 'green' : 'red'}
                   >
                     {room.isActive ? 'Ativa' : 'Inativa'}
                   </Badge>
-                </Box>
+                </Flex>
               </Link>
 
               <Card.Header pb={2}>
-                <Link href={`/salas/${room.id}`} >
-                  <ChakraLink _hover={{ textDecoration: 'none', color: 'blue.600' }}>
-                    <Heading size="md" cursor="pointer">{room.name}</Heading>
-                  </ChakraLink>
+                <Link href={`/salas/${room.id}`} _hover={{ textDecoration: 'none', color: 'blue.600' }}>
+                  <Heading size="md" cursor="pointer">{room.name}</Heading>
                 </Link>
               </Card.Header>
 
@@ -135,13 +127,13 @@ export default function RoomList() {
                     <Text color="fg.muted">Capacidade:</Text>
                     <Text fontWeight="medium">{room.capacity} Pessoas</Text>
                   </Flex>
-                  
+
                   <Text fontSize="sm" color="fg.muted" lineClamp={2} minH="40px">
                     {room.description || 'Sem descrição disponível.'}
                   </Text>
-                  
+
                   <Separator />
-                  
+
                   <Flex gap={2}>
                     {/* Botão Ver Detalhes */}
                     <Link href={`/salas/${room.id}`} >
@@ -151,8 +143,8 @@ export default function RoomList() {
                     </Link>
 
                     {/* Botão Reservar */}
-                    <Button 
-                      colorPalette="blue" 
+                    <Button
+                      colorPalette="blue"
                       flex="1"
                       size="sm"
                       onClick={() => handleBooking(room)}
@@ -168,17 +160,17 @@ export default function RoomList() {
         </SimpleGrid>
       )}
 
-      <BookingModal 
-        isOpen={isBookingOpen} 
-        onClose={() => setIsBookingOpen(false)} 
-        selectedRoom={selectedRoom} 
-        onSuccess={() => {}}
+      <BookingModal
+        isOpen={isBookingOpen}
+        onClose={() => setIsBookingOpen(false)}
+        selectedRoom={selectedRoom}
+        onSuccess={() => { }}
       />
 
-      <AdminRoomModal 
-        isOpen={isAdminOpen} 
-        onClose={() => setIsAdminOpen(false)} 
-        onSuccess={fetchRooms} 
+      <AdminRoomModal
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+        onSuccess={fetchRooms}
       />
     </Box>
   );

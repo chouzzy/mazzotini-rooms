@@ -52,7 +52,8 @@ const customConfig = defineConfig({
           subtle: { value: "{colors.accent.50}" },
           emphasized: { value: "{colors.accent.300}" },
           focusRing: { value: "{colors.accent.500}" },
-        }
+        },
+        textPrimary: { value: "#4D4D4D" },
       },
     },
   },

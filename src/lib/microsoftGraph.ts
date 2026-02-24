@@ -6,7 +6,7 @@ export interface OnlineMeeting {
 }
 
 // 1. Helper para obter o Token (Client Credentials Flow)
-async function getMicrosoftToken(): Promise<string> {
+export async function getMicrosoftToken(): Promise<string> {
   const tenantId = process.env.AZURE_AD_TENANT_ID;
   const clientId = process.env.AZURE_AD_CLIENT_ID;
   const clientSecret = process.env.AZURE_AD_CLIENT_SECRET;
