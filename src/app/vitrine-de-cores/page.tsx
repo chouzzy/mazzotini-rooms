@@ -1,10 +1,11 @@
-import { Box, Heading, Text, Button, Stack, Container, Grid, Badge } from '@chakra-ui/react'
+import { Box, Heading, Text, Button, Stack, Container, Grid, Badge, Image } from '@chakra-ui/react'
 
 export default function Home() {
   return (
     <Container maxW="container.lg" py={10}>
       <Stack gap={8}>
         <Box textAlign="center" py={10} bg="accent.solid" color="white" borderRadius="md">
+          <Image src="/logo-1.png" alt="Mazzotini Rooms Logo" boxSize="80px" mx="auto" mb={4} />
           <Heading size="3xl">Mazzotini Rooms</Heading>
           <Text fontSize="xl" mt={2} opacity={0.9}>Identidade Visual do Sistema</Text>
         </Box>
