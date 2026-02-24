@@ -1,6 +1,6 @@
-import { match } from "assert";
+import { default as middleware } from "next-auth/middleware";
 
-export { default } from "next-auth/middleware";
+export { middleware };
 
 export const config = {
   // Protege estas rotas. Se não estiver logado, manda pro login.
