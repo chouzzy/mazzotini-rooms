@@ -1,13 +1,24 @@
-import { default as middleware } from "next-auth/middleware";
+import { withAuth } from "next-auth/middleware";
 
-export { middleware };
+export default withAuth({
+  pages: {
+    signIn: '/login', // Diz ao middleware para onde mandar quem não está logado
+  },
+});
 
 export const config = {
-  // Protege estas rotas. Se não estiver logado, manda pro login.
-  // matcher: [
-  //   "/minhas-reservas", 
-  //   "/calendario",
-  //   "/api/bookings/:path*" // Protege API de agendamentos (exceto GET se for público)
-  // ],
-  matcher: []
+  // O matcher define QUAIS rotas vão exigir login.
+  // Regra de Ouro: NUNCA coloque "/login" ou "/api/auth/:path*" aqui dentro!
+  matcher: [
+    // Se quiser que o sistema seja 100% fechado (inclusive a Home), descomente a linha abaixo:
+    // "/", 
+    
+    "/minhas-reservas/:path*", 
+    "/calendario/:path*",
+    "/admin/:path*",
+    
+    // Protege também as rotas da API (exceto a de autenticação e upload)
+    "/api/bookings/:path*",
+    "/api/rooms/:path*",
+  ]
 };
