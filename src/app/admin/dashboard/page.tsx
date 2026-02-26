@@ -1,184 +1,235 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { 
-  Box, Container, Heading, Table, Badge, Button, Flex, 
-  Spinner, Center,  Stack, Text 
+import {
+  Box,
+  Heading,
+  Input,
+  Button,
+  Stack,
+  Card,
+  Text,
+  Field,
+  Separator,
+  Center,
+  Spinner,
+  Dialog,
+  Link as ChakraLink,
+  Badge,
+  Flex
 } from '@chakra-ui/react';
-import Navbar from '@/components/Navbar';
-import { LuCheck, LuX } from "react-icons/lu";
+import { LuCalendarX, LuBadgeAlert, LuVideo } from "react-icons/lu"; // Removido LuSearch
+import { useSession } from 'next-auth/react'; // IMPORTAÇÃO DO NEXTAUTH
 import { toaster } from '@/components/ui/toaster';
-
-// Replicando o Enum aqui para uso no front (ou importar do prisma se estivesse num shared lib)
-enum BookingStatus {
-  PENDING = 'PENDING',
-  CONFIRMED = 'CONFIRMED',
-  REJECTED = 'REJECTED',
-  CANCELLED = 'CANCELLED'
-}
 
 interface Booking {
   id: string;
   title: string;
   startTime: string;
   endTime: string;
-  status: BookingStatus;
-  user: { name: string; email: string };
-  room: { name: string };
+  status: string; // <-- NOVO: Adicionado para o frontend saber o status
+  onlineMeetingUrl?: string | null; // Novo campo opcional
+  room: {
+    name: string;
+  };
 }
 
-export default function AdminDashboard() {
+export default function MyBookings() {
+  const { data: session, status } = useSession(); // PEGA A SESSÃO
+  const [isSearched, setIsSearched] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true); // Começa true pois vai buscar logo no início
+  
+  // Estado para controlar o cancelamento
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [idToConfirm, setIdToConfirm] = useState<string | null>(null);
 
-  const fetchBookings = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/bookings'); 
-      if (!res.ok) throw new Error('Falha ao carregar');
-      const data = await res.json();
-      
-      // Ordena: Pendentes primeiro
-      const sorted = data.sort((a: Booking, b: Booking) => {
-        if (a.status === BookingStatus.PENDING && b.status !== BookingStatus.PENDING) return -1;
-        if (a.status !== BookingStatus.PENDING && b.status === BookingStatus.PENDING) return 1;
-        return 0;
-      });
-      
-      setBookings(sorted);
-    } catch (error) {
-      toaster.create({ title: 'Erro ao carregar', type: 'error' });
-    } finally {
+  // Efeito que busca os agendamentos assim que a sessão carrega
+  useEffect(() => {
+    const fetchBookings = async () => {
+      if (!session?.user?.email) return;
+
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/bookings?email=${encodeURIComponent(session.user.email)}`);
+        if (!res.ok) throw new Error('Erro ao buscar agendamentos');
+        
+        const data = await res.json();
+        setBookings(data);
+        setIsSearched(true);
+      } catch (error) {
+        toaster.create({
+          title: 'Erro',
+          description: 'Não foi possível carregar seus agendamentos.',
+          type: 'error',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (status === 'authenticated') {
+      fetchBookings();
+    } else if (status === 'unauthenticated') {
       setLoading(false);
     }
-  };
+  }, [session, status]);
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
+  const handleConfirmCancel = async () => {
+    if (!idToConfirm) return;
+    
+    const id = idToConfirm;
+    setCancelingId(id);
+    setIdToConfirm(null);
 
-  const handleStatusChange = async (id: string, newStatus: BookingStatus) => {
-    setProcessingId(id);
     try {
-      const res = await fetch('/api/bookings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: newStatus }),
+      const res = await fetch(`/api/bookings?id=${id}`, {
+        method: 'DELETE',
       });
 
-      if (!res.ok) throw new Error('Falha na atualização');
+      if (!res.ok) throw new Error('Falha ao cancelar');
 
       toaster.create({
-        title: newStatus === BookingStatus.CONFIRMED ? 'Confirmado' : 'Rejeitado',
-        description: `E-mail de notificação enviado.`,
-        type: newStatus === BookingStatus.CONFIRMED ? 'success' : 'info',
+        title: 'Sucesso',
+        description: 'Agendamento cancelado.',
+        type: 'success',
       });
 
-      setBookings((prev) => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
-
+      setBookings((prev) => prev.filter((b) => b.id !== id));
     } catch (error) {
-      toaster.create({ title: 'Erro ao processar', type: 'error' });
+      toaster.create({
+        title: 'Erro',
+        description: 'Não foi possível cancelar o agendamento.',
+        type: 'error',
+      });
     } finally {
-      setProcessingId(null);
+      setCancelingId(null);
     }
   };
 
-  const formatDate = (isoString: string) => {
-    return new Date(isoString).toLocaleString('pt-BR', {
-      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
-  const getStatusBadge = (status: BookingStatus) => {
+  // NOVO: Função para renderizar a etiqueta de status visualmente
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case BookingStatus.CONFIRMED: return <Badge colorPalette="green">Confirmado</Badge>;
-      case BookingStatus.REJECTED: return <Badge colorPalette="red">Rejeitado</Badge>;
-      case BookingStatus.CANCELLED: return <Badge colorPalette="gray">Cancelado</Badge>;
-      default: return <Badge colorPalette="yellow">Pendente</Badge>;
+      case 'CONFIRMED': return <Badge colorPalette="green" size="sm">Aprovada</Badge>;
+      case 'REJECTED': return <Badge colorPalette="red" size="sm">Rejeitada</Badge>;
+      case 'CANCELLED': return <Badge colorPalette="gray" size="sm">Cancelada</Badge>;
+      default: return <Badge colorPalette="yellow" size="sm">Aguardando Aprovação</Badge>;
     }
   };
 
   return (
-    <Box minH="100vh" bg="bg.canvas">
-      <Navbar />
-      
-      <Container maxW="6xl" py={8}>
-        <Flex justify="space-between" align="center" mb={6}>
-          <Heading size="lg">Painel de Aprovações</Heading>
-          <Button variant="outline" size="sm" onClick={fetchBookings}>Atualizar</Button>
-        </Flex>
+    <Box mt={10} p={6} borderWidth="1px" borderRadius="lg" bg="white">
+      <Heading size="lg" mb={6}>Meus Agendamentos</Heading>
 
-        {loading ? (
-          <Center py={20}><Spinner size="xl" color="blue.500" /></Center>
-        ) : (
-          <Box borderWidth="1px" borderRadius="lg" bg="white" overflowX="auto">
-            <Table.Root size="sm">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader>Status</Table.ColumnHeader>
-                  <Table.ColumnHeader>Evento</Table.ColumnHeader>
-                  <Table.ColumnHeader>Sala</Table.ColumnHeader>
-                  <Table.ColumnHeader>Solicitante</Table.ColumnHeader>
-                  <Table.ColumnHeader>Data/Hora</Table.ColumnHeader>
-                  <Table.ColumnHeader textAlign="right">Ações</Table.ColumnHeader>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {bookings.map((booking) => (
-                  <Table.Row key={booking.id} bg={booking.status === BookingStatus.PENDING ? 'yellow.50' : 'transparent'}>
-                    <Table.Cell>{getStatusBadge(booking.status)}</Table.Cell>
-                    <Table.Cell fontWeight="medium">{booking.title}</Table.Cell>
-                    <Table.Cell>{booking.room.name}</Table.Cell>
-                    <Table.Cell>
-                      <Stack gap={0}>
-                        <Text fontSize="sm">{booking.user.name}</Text>
-                        <Text fontSize="xs" color="fg.muted">{booking.user.email}</Text>
-                      </Stack>
-                    </Table.Cell>
-                    <Table.Cell whiteSpace="nowrap">
-                      {formatDate(booking.startTime)}
-                    </Table.Cell>
-                    <Table.Cell textAlign="right">
-                      {booking.status === BookingStatus.PENDING && (
-                        <Flex gap={2} justify="flex-end">
-                          <Button 
-                            size="xs" 
-                            colorPalette="green" 
-                            variant="solid"
-                            onClick={() => handleStatusChange(booking.id, BookingStatus.CONFIRMED)}
-                            loading={processingId === booking.id}
-                            disabled={!!processingId}
-                          >
-                            <LuCheck /> Aprovar
-                          </Button>
-                          <Button 
-                            size="xs" 
-                            colorPalette="red" 
-                            variant="outline"
-                            onClick={() => handleStatusChange(booking.id, BookingStatus.REJECTED)}
-                            loading={processingId === booking.id}
-                            disabled={!!processingId}
-                          >
-                            <LuX /> Rejeitar
-                          </Button>
-                        </Flex>
-                      )}
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-                {bookings.length === 0 && (
-                  <Table.Row>
-                    <Table.Cell colSpan={6} textAlign="center" py={8}>
-                      Nenhuma solicitação encontrada.
-                    </Table.Cell>
-                  </Table.Row>
-                )}
-              </Table.Body>
-            </Table.Root>
-          </Box>
-        )}
-      </Container>
+      {/* TODA A BARRA DE PESQUISA FOI REMOVIDA DAQUI */}
+      <Separator mb={6} />
+
+      {loading && (
+        <Center py={10}>
+          <Spinner size="lg" color="blue.500" />
+        </Center>
+      )}
+
+      {!loading && isSearched && bookings.length === 0 && (
+        <Box textAlign="center" py={10} color="fg.muted">
+          <Text fontSize="lg">Você não possui nenhum agendamento futuro.</Text>
+        </Box>
+      )}
+
+      <Stack gap={4}>
+        {bookings.map((booking) => (
+          <Card.Root key={booking.id} size="sm" variant="subtle" opacity={booking.status === 'REJECTED' || booking.status === 'CANCELLED' ? 0.6 : 1}>
+            <Card.Body>
+              <Stack 
+                direction={{ base: 'column', md: 'row' }} 
+                justify="space-between" 
+                align={{ base: 'start', md: 'center' }}
+                gap={4}
+              >
+                <Box>
+                  <Flex align="center" gap={3} mb={1}>
+                    <Heading size="sm">{booking.title}</Heading>
+                    {getStatusBadge(booking.status)}
+                  </Flex>
+                  <Text fontSize="sm" color="fg.muted" fontWeight="bold">
+                    {booking.room.name}
+                  </Text>
+                  <Text fontSize="xs" color="fg.muted">
+                    {formatDate(booking.startTime)} - {formatDate(booking.endTime)}
+                  </Text>
+                </Box>
+
+                <Stack direction="row" gap={3}>
+                  {/* Botão do Teams (Visível apenas se houver link E se a reserva estiver APROVADA) */}
+                  {booking.onlineMeetingUrl && booking.status === 'CONFIRMED' && (
+                    <Button
+                      as="a"
+                      onClick={() => window.open(booking.onlineMeetingUrl as string, '_blank', 'noopener,noreferrer') }
+                      rel="noopener noreferrer"
+                      size="sm"
+                      colorPalette="purple" // Roxo/Azul para destacar o Teams
+                      variant="solid"
+                    >
+                      <LuVideo /> Entrar no Teams
+                    </Button>
+                  )}
+
+                  <Button 
+                    size="sm" 
+                    colorPalette="red" 
+                    variant="outline"
+                    loading={cancelingId === booking.id}
+                    onClick={() => setIdToConfirm(booking.id)}
+                  >
+                    <LuCalendarX /> Cancelar
+                  </Button>
+                </Stack>
+              </Stack>
+            </Card.Body>
+          </Card.Root>
+        ))}
+      </Stack>
+
+      {/* Dialog de Confirmação */}
+      <Dialog.Root 
+        open={!!idToConfirm} 
+        onOpenChange={(e) => !e.open && setIdToConfirm(null)}
+        role="alertdialog"
+      >
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content>
+            <Dialog.Header>
+              <Stack direction="row" align="center" gap={2}>
+                <LuBadgeAlert color="orange" />
+                <Dialog.Title>Cancelar Agendamento</Dialog.Title>
+              </Stack>
+            </Dialog.Header>
+            <Dialog.Body>
+              <Text>
+                Tem certeza que deseja cancelar este agendamento? Esta ação não pode ser desfeita.
+              </Text>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Button variant="ghost" onClick={() => setIdToConfirm(null)}>
+                Voltar
+              </Button>
+              <Button colorPalette="red" onClick={handleConfirmCancel}>
+                Sim, Cancelar
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
     </Box>
   );
 }

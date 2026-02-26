@@ -100,7 +100,6 @@ export default function AdminRoomsPage() {
 
   return (
     <Box minH="100vh" bg="bg.canvas">
-      <Navbar />
       
       <Container maxW="6xl" py={8}>
         <Flex justify="space-between" align="center" mb={6}>

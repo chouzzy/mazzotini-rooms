@@ -5,7 +5,7 @@ export interface OnlineMeeting {
   subject: string;
 }
 
-// 1. Helper para obter o Token (Client Credentials Flow)
+// 1. Helper para obter o Token (Certifique-se que está com 'export')
 export async function getMicrosoftToken(): Promise<string> {
   const tenantId = process.env.AZURE_AD_TENANT_ID;
   const clientId = process.env.AZURE_AD_CLIENT_ID;
@@ -90,6 +90,43 @@ export async function createOnlineMeeting(subject: string, startTime: Date, endT
 
   } catch (error) {
     console.error("Erro no createOnlineMeeting:", error);
+    throw error;
+  }
+}
+
+// 3. Helper para Convidar Usuário Externo (Associado)
+export async function inviteGuestUser(email: string, displayName: string, redirectUrl: string) {
+  try {
+    const token = await getMicrosoftToken();
+    const endpoint = `https://graph.microsoft.com/v1.0/invitations`;
+
+    const inviteData = {
+      invitedUserEmailAddress: email,
+      invitedUserDisplayName: displayName,
+      inviteRedirectUrl: redirectUrl, // Para onde o usuário vai depois de aceitar (ex: nosso site)
+      sendInvitationMessage: true, // A Microsoft manda o email bonitinho
+      invitedUserMessageInfo: {
+        customizedMessageBody: "Você foi convidado para acessar o Mazzotini Rooms. Clique no link para aceitar e acessar o sistema de agendamento de salas."
+      }
+    };
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(inviteData),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro ao convidar usuário via Graph: ${errorText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Erro no inviteGuestUser:", error);
     throw error;
   }
 }

@@ -1,24 +1,25 @@
 import { withAuth } from "next-auth/middleware";
 
+// O withAuth envolve todo o sistema e verifica se existe uma sessão válida
 export default withAuth({
   pages: {
-    signIn: '/login', // Diz ao middleware para onde mandar quem não está logado
+    signIn: '/login', // Se não estiver logado, manda para cá!
   },
 });
 
 export const config = {
   // O matcher define QUAIS rotas vão exigir login.
-  // Regra de Ouro: NUNCA coloque "/login" ou "/api/auth/:path*" aqui dentro!
+  // Protegemos tudo, EXCETO a página de login, arquivos públicos e as rotas internas de autenticação/upload.
   matcher: [
-    // Se quiser que o sistema seja 100% fechado (inclusive a Home), descomente a linha abaixo:
-    // "/", 
-    
-    "/minhas-reservas/:path*", 
-    "/calendario/:path*",
-    "/admin/:path*",
-    
-    // Protege também as rotas da API (exceto a de autenticação e upload)
-    "/api/bookings/:path*",
-    "/api/rooms/:path*",
+    /*
+     * Match all request paths except for the ones starting with:
+     * - login (a página de login)
+     * - api/auth (rotas do NextAuth)
+     * - api/upload (caso o upload do S3 precise rodar sem auth estrita temporariamente)
+     * - _next/static (arquivos estáticos)
+     * - _next/image (imagens otimizadas)
+     * - favicon.ico (ícone do site)
+     */
+    "/((?!login|api/auth|api/upload|_next/static|_next/image|favicon.ico).*)",
   ]
 };
