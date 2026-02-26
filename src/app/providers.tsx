@@ -4,6 +4,7 @@ import { ChakraProvider } from '@chakra-ui/react'
 import { system } from '../theme'
 import { Toaster } from '@/components/ui/toaster'
 import { useState, useEffect } from 'react'
+import { SessionProvider } from 'next-auth/react'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)
@@ -14,10 +15,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <ChakraProvider value={system}>
-      {/* Só renderiza o Toaster quando estivermos no navegador (mounted) */}
-      {mounted && <Toaster />}
-      {children}
-    </ChakraProvider>
+    <SessionProvider>
+      <ChakraProvider value={system}>
+        {/* Só renderiza o Toaster quando estivermos no navegador (mounted) */}
+        {mounted && <Toaster />}
+        {children}
+      </ChakraProvider>
+    </SessionProvider>
   )
 }

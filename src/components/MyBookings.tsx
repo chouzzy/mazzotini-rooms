@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Heading,
@@ -16,7 +16,8 @@ import {
   Dialog,
   Link as ChakraLink
 } from '@chakra-ui/react';
-import { LuCalendarX, LuSearch, LuBadgeAlert, LuVideo } from "react-icons/lu";
+import { LuCalendarX, LuBadgeAlert, LuVideo } from "react-icons/lu"; // Removido LuSearch
+import { useSession } from 'next-auth/react'; // IMPORTAÇÃO DO NEXTAUTH
 import { toaster } from './ui/toaster';
 
 interface Booking {
@@ -31,36 +32,45 @@ interface Booking {
 }
 
 export default function MyBookings() {
-  const [email, setEmail] = useState('');
+  const { data: session, status } = useSession(); // PEGA A SESSÃO
   const [isSearched, setIsSearched] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Começa true pois vai buscar logo no início
   
   // Estado para controlar o cancelamento
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [idToConfirm, setIdToConfirm] = useState<string | null>(null);
 
-  const fetchBookings = async () => {
-    if (!email) return;
+  // Efeito que busca os agendamentos assim que a sessão carrega
+  useEffect(() => {
+    const fetchBookings = async () => {
+      if (!session?.user?.email) return;
 
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/bookings?email=${encodeURIComponent(email)}`);
-      if (!res.ok) throw new Error('Erro ao buscar agendamentos');
-      
-      const data = await res.json();
-      setBookings(data);
-      setIsSearched(true);
-    } catch (error) {
-      toaster.create({
-        title: 'Erro',
-        description: 'Não foi possível carregar seus agendamentos.',
-        type: 'error',
-      });
-    } finally {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/bookings?email=${encodeURIComponent(session.user.email)}`);
+        if (!res.ok) throw new Error('Erro ao buscar agendamentos');
+        
+        const data = await res.json();
+        setBookings(data);
+        setIsSearched(true);
+      } catch (error) {
+        toaster.create({
+          title: 'Erro',
+          description: 'Não foi possível carregar seus agendamentos.',
+          type: 'error',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (status === 'authenticated') {
+      fetchBookings();
+    } else if (status === 'unauthenticated') {
       setLoading(false);
     }
-  };
+  }, [session, status]);
 
   const handleConfirmCancel = async () => {
     if (!idToConfirm) return;
@@ -107,25 +117,7 @@ export default function MyBookings() {
     <Box mt={10} p={6} borderWidth="1px" borderRadius="lg" bg="white">
       <Heading size="lg" mb={6}>Meus Agendamentos</Heading>
 
-      <Stack gap={4} direction={{ base: 'column', sm: 'row' }} align="flex-end" mb={8}>
-        <Field.Root flex="1">
-          <Field.Label>Consultar por E-mail</Field.Label>
-          <Input 
-            placeholder="Seu e-mail cadastrado..." 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && fetchBookings()}
-          />
-        </Field.Root>
-        <Button 
-          onClick={fetchBookings} 
-          loading={loading}
-          colorPalette="blue"
-        >
-          <LuSearch /> Buscar
-        </Button>
-      </Stack>
-
+      {/* TODA A BARRA DE PESQUISA FOI REMOVIDA DAQUI */}
       <Separator mb={6} />
 
       {loading && (
@@ -136,7 +128,7 @@ export default function MyBookings() {
 
       {!loading && isSearched && bookings.length === 0 && (
         <Box textAlign="center" py={10} color="fg.muted">
-          <Text fontSize="lg">Nenhum agendamento encontrado para este e-mail.</Text>
+          <Text fontSize="lg">Você não possui nenhum agendamento futuro.</Text>
         </Box>
       )}
 
@@ -164,7 +156,9 @@ export default function MyBookings() {
                   {/* Botão do Teams (Visível apenas se houver link) */}
                   {booking.onlineMeetingUrl && (
                     <Button
-                      onClick={() => window.open(booking.onlineMeetingUrl!, '_blank', 'noopener,noreferrer')}
+                      as="a"
+                      onClick={ () => window.open(booking.onlineMeetingUrl as string, '_blank') }
+                      rel="noopener noreferrer"
                       size="sm"
                       colorPalette="purple" // Roxo/Azul para destacar o Teams
                       variant="solid"

@@ -8,8 +8,9 @@ import {
   Stack,
   Text,
   Separator,
-  Field,
+  Field
 } from '@chakra-ui/react';
+import { useSession } from 'next-auth/react'; // IMPORTAÇÃO DO NEXTAUTH
 import { toaster } from './ui/toaster';
 
 interface Room {
@@ -26,10 +27,9 @@ interface BookingModalProps {
 
 export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess }: BookingModalProps) {
   const [loading, setLoading] = useState(false);
+  const { data: session } = useSession(); // PEGA O USUÁRIO LOGADO
   
-  // Dados do Formulário
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  // Dados do Formulário (Removido name e email)
   const [title, setTitle] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -48,8 +48,14 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
 
   const handleSubmit = async () => {
     if (!selectedRoom) return;
+    
+    // Garante que o usuário está logado
+    if (!session?.user?.id) {
+      toaster.create({ title: 'Erro de Autenticação', description: 'Você precisa estar logado.', type: 'error' });
+      return;
+    }
 
-    if (!name || !email || !title || !startTime || !endTime) {
+    if (!title || !startTime || !endTime) {
       toaster.create({
         title: 'Campos obrigatórios',
         description: 'Por favor, preencha todos os campos.',
@@ -72,27 +78,15 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
     setLoading(true);
 
     try {
-      // 1. IDENTIFICAÇÃO
-      const authRes = await fetch('/api/auth/identify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email }),
-      });
+      // O PASSO 1 (Identificação) FOI REMOVIDO! O NextAuth já fez isso por nós.
 
-      if (!authRes.ok) {
-        const err = await authRes.json();
-        throw new Error(err.error || 'Erro na identificação');
-      }
-
-      const user = await authRes.json();
-
-      // 2. AGENDAMENTO
+      // 2. AGENDAMENTO DIRETO COM O ID DA SESSÃO
       const bookingRes = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           roomId: selectedRoom.id,
-          userId: user.id,
+          userId: session.user.id, // USA O ID DO USUÁRIO LOGADO!
           title,
           startTime: new Date(startTime).toISOString(),
           endTime: new Date(endTime).toISOString(),
@@ -143,27 +137,8 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
           <Dialog.Body>
             <Stack gap={4}>
               <Text fontSize="sm" color="fg.muted">
-                Identifique-se para realizar o agendamento.
+                Agendando como: <strong>{session?.user?.name}</strong> ({session?.user?.email})
               </Text>
-
-              <Field.Root required>
-                <Field.Label>Seu Nome</Field.Label>
-                <Input 
-                  placeholder="Ex: João Silva" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
-                />
-              </Field.Root>
-
-              <Field.Root required>
-                <Field.Label>Seu Email</Field.Label>
-                <Input 
-                  type="email" 
-                  placeholder="Ex: joao@empresa.com" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                />
-              </Field.Root>
 
               <Separator />
 
