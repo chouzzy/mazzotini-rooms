@@ -1,8 +1,9 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { Box, Container, Alert, AlertTitle, AlertDescription } from "@chakra-ui/react"; // Chakra v3 updates below
+import { Box, Container, Alert, AlertTitle, AlertDescription, Flex } from "@chakra-ui/react"; // Chakra v3 updates below
 import { AdminSidebar } from "@/components/AdminSideBar";
+import Navbar from "@/components/Navbar";
 
 export default async function AdminLayout({
   children,
@@ -19,14 +20,12 @@ export default async function AdminLayout({
 
   // Se for ADMIN, renderiza a página normalmente
   return (
-    <Box minH="100vh" bg="gray.50">
-      {/* Sidebar Fixa */}
+    <Flex flexDir={'column'} minH="100vh" bg="gray.50" w='100%'>
       <AdminSidebar />
-
       {/* Conteúdo Principal (empurrado 250px para a direita) */}
       <Box ml="250px" p={8}>
         {children}
       </Box>
-    </Box>
+    </Flex>
   )
 }

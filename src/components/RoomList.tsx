@@ -84,7 +84,7 @@ export default function RoomList() {
   }
 
   return (
-    <Box mt={8} position="relative">
+    <Box id='room-list' mt={8} position="relative">
       <Flex justify="space-between" align="center" mb={6}>
         <Heading size="md">Salas Disponíveis</Heading>
         <Button size="sm" variant="outline" onClick={() => setIsAdminOpen(true)}>
