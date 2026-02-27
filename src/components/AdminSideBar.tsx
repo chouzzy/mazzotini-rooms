@@ -15,17 +15,12 @@ export function AdminSidebar() {
       h="100vh" 
       position="fixed" 
       left={0} 
-      top={0} 
+      top={24} 
       borderRightWidth="1px" 
       p={4}
       display="flex"
       flexDirection="column"
     >
-      <Box mb={8} px={2} mt={4}>
-        <Text fontSize="xl" fontWeight="bold" color="blue.600">
-          Painel Admin
-        </Text>
-      </Box>
 
       <Stack gap={2} flex={1}>
         <Link href="/admin/dashboard" >

@@ -14,17 +14,20 @@ import {
   Center,
   Spinner,
   Dialog,
-  Link as ChakraLink
+  Link as ChakraLink,
+  Badge,
+  Flex
 } from '@chakra-ui/react';
 import { LuCalendarX, LuBadgeAlert, LuVideo } from "react-icons/lu"; // Removido LuSearch
 import { useSession } from 'next-auth/react'; // IMPORTAÇÃO DO NEXTAUTH
-import { toaster } from './ui/toaster';
+import { toaster } from '@/components/ui/toaster';
 
 interface Booking {
   id: string;
   title: string;
   startTime: string;
   endTime: string;
+  status: string; // <-- NOVO: Adicionado para o frontend saber o status
   onlineMeetingUrl?: string | null; // Novo campo opcional
   room: {
     name: string;
@@ -113,6 +116,16 @@ export default function MyBookings() {
     });
   };
 
+  // NOVO: Função para renderizar a etiqueta de status visualmente
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'CONFIRMED': return <Badge colorPalette="green" size="sm">Aprovada</Badge>;
+      case 'REJECTED': return <Badge colorPalette="red" size="sm">Rejeitada</Badge>;
+      case 'CANCELLED': return <Badge colorPalette="gray" size="sm">Cancelada</Badge>;
+      default: return <Badge colorPalette="yellow" size="sm">Aguardando Aprovação</Badge>;
+    }
+  };
+
   return (
     <Box mt={10} p={6} borderWidth="1px" borderRadius="lg" bg="white">
       <Heading size="lg" mb={6}>Meus Agendamentos</Heading>
@@ -134,7 +147,7 @@ export default function MyBookings() {
 
       <Stack gap={4}>
         {bookings.map((booking) => (
-          <Card.Root key={booking.id} size="sm" variant="subtle">
+          <Card.Root key={booking.id} size="sm" variant="subtle" opacity={booking.status === 'REJECTED' || booking.status === 'CANCELLED' ? 0.6 : 1}>
             <Card.Body>
               <Stack 
                 direction={{ base: 'column', md: 'row' }} 
@@ -143,7 +156,10 @@ export default function MyBookings() {
                 gap={4}
               >
                 <Box>
-                  <Heading size="sm" mb={1}>{booking.title}</Heading>
+                  <Flex align="center" gap={3} mb={1}>
+                    <Heading size="sm">{booking.title}</Heading>
+                    {getStatusBadge(booking.status)}
+                  </Flex>
                   <Text fontSize="sm" color="fg.muted" fontWeight="bold">
                     {booking.room.name}
                   </Text>
@@ -153,11 +169,11 @@ export default function MyBookings() {
                 </Box>
 
                 <Stack direction="row" gap={3}>
-                  {/* Botão do Teams (Visível apenas se houver link) */}
-                  {booking.onlineMeetingUrl && (
+                  {/* Botão do Teams (Visível apenas se houver link E se a reserva estiver APROVADA) */}
+                  {booking.onlineMeetingUrl && booking.status === 'CONFIRMED' && (
                     <Button
                       as="a"
-                      onClick={ () => window.open(booking.onlineMeetingUrl as string, '_blank') }
+                      onClick={() => window.open(booking.onlineMeetingUrl as string, '_blank', 'noopener,noreferrer')}
                       rel="noopener noreferrer"
                       size="sm"
                       colorPalette="purple" // Roxo/Azul para destacar o Teams

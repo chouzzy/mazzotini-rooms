@@ -5,6 +5,7 @@ import { system } from '../theme'
 import { Toaster } from '@/components/ui/toaster'
 import { useState, useEffect } from 'react'
 import { SessionProvider } from 'next-auth/react'
+import './globals.css'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)

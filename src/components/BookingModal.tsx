@@ -99,8 +99,8 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
       }
 
       toaster.create({
-        title: 'Agendamento Confirmado!',
-        description: `Sala ${selectedRoom.name} reservada com sucesso.`,
+        title: 'Reserva Submetida com Sucesso!',
+        description: `Sala ${selectedRoom.name} foi reservada. Aguarde a confirmação da administração por e-mail.`,
         type: 'success',
         duration: 5000,
       });

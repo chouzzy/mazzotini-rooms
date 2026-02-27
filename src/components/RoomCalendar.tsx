@@ -70,9 +70,11 @@ export default function RoomCalendar() {
 
   return (
     <Box 
-      height="600px" 
+      height="80vh" 
+      maxW={'8xl'}
       bg="white" 
-      p={4} 
+      p={16} 
+      w='100%'
       borderRadius="lg" 
       borderWidth="1px"
     >

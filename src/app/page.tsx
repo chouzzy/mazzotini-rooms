@@ -1,17 +1,15 @@
-import { Container, Box } from '@chakra-ui/react';
-import RoomList from '@/components/RoomList';
+import { Box, Flex } from '@chakra-ui/react';
 import Navbar from '@/components/Navbar';
+import RoomCarousel from '@/components/RoomCarousel';
 import { Welcome } from '@/components/Welcome';
+import HowItWorks from '@/components/HowItWorks';
 
 export default function Home() {
   return (
-    <Box minH="100vh" bg="bg.canvas">
-      <Navbar />
-
-      <Container maxW="8xl" py={8}>
-        <Welcome />
-        <RoomList />
-      </Container>
-    </Box>
+      
+        <Flex flexDir={'column'} alignItems={'center'} justifyContent={'center'} gap={16}>
+          <Welcome />
+          <RoomCarousel />
+        </Flex>
   );
 }
