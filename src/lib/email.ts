@@ -55,9 +55,6 @@ export async function sendApprovalEmail(
   userEmail: string, bookingTitle: string, roomName: string, 
   startTime: Date | string, endTime: Date | string, meetingLink?: string | null
 ) {
-  // Substitua a URL abaixo pela URL real do logo da Mazzotini hospedado publicamente
-  const logoUrl = "https://cdn-icons-png.flaticon.com/512/3135/3135679.png"; 
-
   const htmlBody = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
       <div style="background-color: #1e3a8a; padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
@@ -160,4 +157,42 @@ export async function sendCancellationEmail(
   `;
 
   return sendEmail({ to: userEmail, subject: `Reserva Cancelada: ${bookingTitle}`, body: htmlBody });
+}
+
+// -----------------------------------------------------
+// NOVO: TEMPLATE DE CONVITE CUSTOMIZADO
+// -----------------------------------------------------
+export async function sendInviteEmail(userEmail: string, userName: string, redeemUrl: string) {
+  const htmlBody = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
+      <div style="background-color: #1e3a8a; padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Mazzotini Rooms</h1>
+      </div>
+      
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 0 0 8px 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h2 style="color: #3b82f6; margin-top: 0;">👋 Bem-vindo(a) à Mazzotini Advogados!</h2>
+        <p style="color: #334155; font-size: 16px; line-height: 1.5;">Olá ${userName},</p>
+        <p style="color: #334155; font-size: 16px; line-height: 1.5;">Você foi convidado(a) para acessar o nosso sistema exclusivo de agendamento de salas de reunião e espaços de trabalho corporativos.</p>
+        
+        <div style="text-align: center; margin-top: 32px; margin-bottom: 24px;">
+          <a href="${redeemUrl}" style="background-color: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            Aceitar Convite e Acessar
+          </a>
+        </div>
+        
+        <div style="background-color: #f1f5f9; padding: 16px; border-radius: 4px;">
+          <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">
+            <strong>Como funciona?</strong> Ao clicar no botão acima, você será direcionado(a) ao ambiente seguro da Microsoft para confirmar seu acesso utilizando sua conta atual (este e-mail).
+          </p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px;">
+        Este é um e-mail automático enviado pela plataforma Mazzotini Rooms. <br>
+        &copy; ${new Date().getFullYear()} Mazzotini Advogados
+      </div>
+    </div>
+  `;
+
+  return sendEmail({ to: userEmail, subject: "Convite: Acesso ao Sistema Mazzotini Rooms", body: htmlBody });
 }
