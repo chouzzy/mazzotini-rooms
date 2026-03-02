@@ -1,14 +1,21 @@
 'use client';
 
 import { Box, Container, SimpleGrid, Flex, Stack, Separator, Text, Link } from "@chakra-ui/react";
+import { useSession } from "next-auth/react";
 import { LuMapPin, LuPhone, LuMail } from "react-icons/lu";
 
 export function Footer() {
+
+    const { data: session, status } = useSession();
+
+    // Verifica se o usuário atual é um Administrador
+    const isAdmin = session?.user?.role === 'ADMIN';
+
     return (
-        <Flex bg="black" color="gray.300" py={12} w='100%' flexDir={'column'}>
+        <Flex bg="black" color="gray.300" py={12} p={8} w='100%' flexDir={'column'}>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={10}>
                 <Flex alignItems={'center'} justifyContent={'center'} flexDir={'column'} gap={1}>
-                    <Link href="/" _hover={{ textDecoration: 'none' }} fontSize="xl" fontWeight="bold" color="blue.600" bgImage={'url(./logo.png)'} bgRepeat={'no-repeat'} bgSize={'contain'} bgPos={'center'}
+                    <Link href="/" _hover={{ textDecoration: 'none' }} fontSize="xl" fontWeight="bold" color="blue.600" bgImage={isAdmin? 'url(/logo-admin.png)' : 'url(/logo.png)'} bgRepeat={'no-repeat'} bgSize={'contain'} bgPos={'center'}
                         h={24} w={40} />
                     <Text maxW="md" textAlign={'center'}>
                         Excelência e estrutura moderna para atender as necessidades dos nossos associados e clientes.

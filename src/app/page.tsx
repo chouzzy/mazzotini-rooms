@@ -2,14 +2,21 @@ import { Box, Flex } from '@chakra-ui/react';
 import Navbar from '@/components/Navbar';
 import RoomCarousel from '@/components/RoomCarousel';
 import { Welcome } from '@/components/Welcome';
-import HowItWorks from '@/components/HowItWorks';
 
 export default function Home() {
   return (
-      
-        <Flex flexDir={'column'} alignItems={'center'} justifyContent={'center'} gap={16}>
-          <Welcome />
-          <RoomCarousel />
-        </Flex>
+    <Flex 
+      flexDir="column" 
+      alignItems="center" 
+      justifyContent="center" 
+      gap={{ base: 10, md: 16 }} 
+      px={{ base: 4, md: 8 }} // Padding lateral para o mobile respirar
+      w="100%"
+      maxW="8xl"
+      mx="auto"
+    >
+      <Welcome />
+      <RoomCarousel />
+    </Flex>
   );
 }

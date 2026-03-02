@@ -134,16 +134,25 @@ export default function AdminUsersPage() {
   return (
     <Box minH="100vh" bg="bg.canvas">
       <Container maxW="6xl" py={8}>
-        <Flex justify="space-between" align="center" mb={6} flexWrap={{ base: 'wrap', md: 'nowrap' }} gap={4}>
-          <Heading size="lg" whiteSpace="nowrap">Gestão de Usuários</Heading>
+        
+        {/* RESPONSIVIDADE DO CABEÇALHO: Empilha no mobile, lado a lado no PC */}
+        <Flex 
+          justify="space-between" 
+          align={{ base: 'start', md: 'center' }} 
+          mb={6} 
+          flexDir={{ base: 'column', md: 'row' }} 
+          gap={4}
+        >
+          <Heading size={{ base: 'md', md: 'lg' }} whiteSpace="nowrap">Gestão de Usuários</Heading>
           
-          {/* Barra de Busca Dinâmica */}
-          <Box position="relative" w="full" maxW="400px">
+          {/* Barra de Busca Dinâmica - Ocupa 100% no mobile */}
+          <Box position="relative" w="full" maxW={{ base: 'full', md: '400px' }}>
             <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" color="fg.muted" zIndex={1}>
               <LuSearch />
             </Box>
             <Input 
               pl={10} 
+              size="sm"
               placeholder="Buscar por nome ou e-mail..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -151,12 +160,23 @@ export default function AdminUsersPage() {
             />
           </Box>
 
-          <Stack direction="row" gap={2}>
-            <Button variant="outline" size="sm" onClick={() => fetchUsers(currentPage, debouncedSearch)} disabled={loading}>
+          <Stack direction="row" gap={2} w={{ base: 'full', md: 'auto' }}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => fetchUsers(currentPage, debouncedSearch)} 
+              disabled={loading}
+              flex={{ base: 1, md: 'auto' }}
+            >
               <LuRefreshCw /> Atualizar
             </Button>
-            <Button colorPalette="blue" size="sm" onClick={() => setIsInviteOpen(true)}>
-              <LuMailPlus /> Convidar Associado
+            <Button 
+              colorPalette="blue" 
+              size="sm" 
+              onClick={() => setIsInviteOpen(true)}
+              flex={{ base: 1, md: 'auto' }}
+            >
+              <LuMailPlus /> Convidar
             </Button>
           </Stack>
         </Flex>
@@ -164,40 +184,43 @@ export default function AdminUsersPage() {
         {loading ? (
           <Center py={20}><Spinner size="xl" color="blue.500" /></Center>
         ) : (
-          <Box borderWidth="1px" borderRadius="lg" bg="white" overflowX="auto" p={4}>
+          <Box borderWidth="1px" borderRadius="lg" bg="white" overflowX="auto" p={{ base: 2, md: 4 }}>
             
-            <Text fontSize="sm" color="fg.muted" mb={4}>
+            <Text fontSize="xs" color="fg.muted" mb={4} px={2}>
               Total de usuários cadastrados: <strong>{totalUsers}</strong>
             </Text>
 
-            <Table.Root size="md">
+            {/* TABELA: Reduzimos a fonte (size="sm") e adicionamos nowrap */}
+            <Table.Root size="sm" variant="line">
               <Table.Header>
                 <Table.Row>
-                  <Table.ColumnHeader>Usuário</Table.ColumnHeader>
-                  <Table.ColumnHeader>E-mail</Table.ColumnHeader>
-                  <Table.ColumnHeader>Cargo</Table.ColumnHeader>
-                  <Table.ColumnHeader textAlign="right">Ações</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap">Usuário</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap">E-mail</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap">Cargo</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap" textAlign="right">Ações</Table.ColumnHeader>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
                 {users.map((user) => (
                   <Table.Row key={user.id}>
-                    <Table.Cell>
+                    <Table.Cell whiteSpace="nowrap">
                       <Flex align="center" gap={3}>
-                        <Avatar.Root size="sm">
+                        <Avatar.Root size="xs">
                           <Avatar.Fallback name={user.name || 'User'} />
                           <Avatar.Image src={user.image || undefined} />
                         </Avatar.Root>
-                        <Text fontWeight="medium">{user.name || 'Sem nome'}</Text>
+                        <Text fontWeight="medium" fontSize="sm">{user.name || 'Sem nome'}</Text>
                       </Flex>
                     </Table.Cell>
-                    <Table.Cell color="fg.muted">{user.email}</Table.Cell>
-                    <Table.Cell>
-                      <Badge colorPalette={user.role === 'ADMIN' ? 'purple' : 'gray'}>
+                    <Table.Cell whiteSpace="nowrap" color="fg.muted" fontSize="sm">
+                      {user.email}
+                    </Table.Cell>
+                    <Table.Cell whiteSpace="nowrap">
+                      <Badge size="sm" colorPalette={user.role === 'ADMIN' ? 'purple' : 'gray'}>
                         {user.role}
                       </Badge>
                     </Table.Cell>
-                    <Table.Cell textAlign="right">
+                    <Table.Cell whiteSpace="nowrap" textAlign="right">
                       {user.role === 'USER' ? (
                         <Button 
                           size="xs" colorPalette="purple" variant="outline"
@@ -228,11 +251,19 @@ export default function AdminUsersPage() {
               </Table.Body>
             </Table.Root>
 
-            {/* Controles de Paginação */}
+            {/* Controles de Paginação: Flexíveis no mobile */}
             {totalPages > 1 && (
-              <Flex justify="space-between" align="center" mt={6} pt={4} borderTopWidth="1px">
+              <Flex 
+                justify="space-between" 
+                align="center" 
+                mt={6} 
+                pt={4} 
+                borderTopWidth="1px"
+                flexWrap="wrap"
+                gap={3}
+              >
                 <Button 
-                  size="sm" 
+                  size="xs" 
                   variant="outline" 
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1 || loading}
@@ -240,12 +271,12 @@ export default function AdminUsersPage() {
                   <LuChevronLeft /> Anterior
                 </Button>
                 
-                <Text fontSize="sm" fontWeight="medium">
+                <Text fontSize="xs" fontWeight="medium">
                   Página {currentPage} de {totalPages}
                 </Text>
 
                 <Button 
-                  size="sm" 
+                  size="xs" 
                   variant="outline" 
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages || loading}
@@ -262,7 +293,7 @@ export default function AdminUsersPage() {
         <Dialog.Root open={isInviteOpen} onOpenChange={(e) => !e.open && setIsInviteOpen(false)}>
           <Dialog.Backdrop />
           <Dialog.Positioner>
-            <Dialog.Content>
+            <Dialog.Content mx={4}>
               <Dialog.Header>
                 <Dialog.Title>Convidar Associado Externo</Dialog.Title>
               </Dialog.Header>
@@ -275,8 +306,9 @@ export default function AdminUsersPage() {
                   </Text>
                   
                   <Field.Root required>
-                    <Field.Label>Nome Completo</Field.Label>
+                    <Field.Label fontSize="sm">Nome Completo</Field.Label>
                     <Input 
+                      size="sm"
                       placeholder="Ex: João Associado" 
                       value={inviteName} 
                       onChange={(e) => setInviteName(e.target.value)} 
@@ -284,8 +316,9 @@ export default function AdminUsersPage() {
                   </Field.Root>
 
                   <Field.Root required>
-                    <Field.Label>E-mail Pessoal (Gmail, Hotmail, etc.)</Field.Label>
+                    <Field.Label fontSize="sm">E-mail Pessoal (Gmail, Hotmail, etc.)</Field.Label>
                     <Input 
+                      size="sm"
                       type="email" 
                       placeholder="Ex: joao@gmail.com" 
                       value={inviteEmail} 
@@ -296,8 +329,8 @@ export default function AdminUsersPage() {
               </Dialog.Body>
 
               <Dialog.Footer mt={4}>
-                <Button variant="ghost" onClick={() => setIsInviteOpen(false)}>Cancelar</Button>
-                <Button colorPalette="blue" onClick={handleInvite} loading={inviting}>
+                <Button variant="ghost" size="sm" onClick={() => setIsInviteOpen(false)}>Cancelar</Button>
+                <Button colorPalette="blue" size="sm" onClick={handleInvite} loading={inviting}>
                   Enviar Convite
                 </Button>
               </Dialog.Footer>

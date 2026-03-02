@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { 
-  Box, 
-  Container, 
-  Heading, 
-  Button, 
-  Table, 
-  Badge, 
-  IconButton, 
+import {
+  Box,
+  Container,
+  Heading,
+  Button,
+  Table,
+  Badge,
+  IconButton,
   Flex,
   Spinner,
   Center,
@@ -34,7 +34,7 @@ export default function AdminRoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState(false);
-  
+
   // Controle do Modal
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [roomToEdit, setRoomToEdit] = useState<Room | null>(null);
@@ -70,14 +70,14 @@ export default function AdminRoomsPage() {
         const err = await res.json();
         throw new Error(err.error || 'Erro ao excluir');
       }
-      
+
       toaster.create({ title: 'Sala excluída', type: 'success' });
       fetchRooms(); // Recarrega a lista
     } catch (error: any) {
-      toaster.create({ 
-        title: 'Erro', 
-        description: error.message, 
-        type: 'error' 
+      toaster.create({
+        title: 'Erro',
+        description: error.message,
+        type: 'error'
       });
     }
   };
@@ -100,20 +100,20 @@ export default function AdminRoomsPage() {
 
   return (
     <Box minH="100vh" bg="bg.canvas">
-      
-      <Container maxW="6xl" py={8}>
-        <Flex justify="space-between" align="center" mb={6}>
+
+      <Container maxW="6xl" py={{base:0, md:8}}>
+        <Flex justify="space-between" align="start" mb={6} flexDir={{ base: 'column', md: 'row' }} gap={{base:4, md:0}}>
           <Heading size="lg">Gestão de Salas</Heading>
-          
+
           <Stack direction="row" gap={2}>
             <Button variant="outline" size="sm" onClick={fetchRooms} disabled={loading}>
               <LuRefreshCw /> Atualizar
             </Button>
-            
-            <Button 
-              colorPalette="blue" 
-              size="sm" 
-              disabled={connectionError} 
+
+            <Button
+              colorPalette="blue"
+              size="sm"
+              disabled={connectionError}
               onClick={handleCreate} // Usando o novo handler
             >
               <LuPlus /> Nova Sala
@@ -149,12 +149,12 @@ export default function AdminRoomsPage() {
                   <Table.Row key={room.id}>
                     <Table.Cell>
                       {room.imageUrl ? (
-                        <Image 
-                          src={room.imageUrl} 
-                          alt={room.name} 
-                          boxSize="40px" 
-                          objectFit="cover" 
-                          borderRadius="md" 
+                        <Image
+                          src={room.imageUrl}
+                          alt={room.name}
+                          boxSize="40px"
+                          objectFit="cover"
+                          borderRadius="md"
                         />
                       ) : (
                         <Box boxSize="40px" bg="gray.100" borderRadius="md" title="Sem imagem" />
@@ -170,9 +170,9 @@ export default function AdminRoomsPage() {
                     <Table.Cell textAlign="right">
                       <Stack direction="row" justify="flex-end" gap={1}>
                         {/* Botão de Editar */}
-                        <IconButton 
-                          variant="ghost" 
-                          size="sm" 
+                        <IconButton
+                          variant="ghost"
+                          size="sm"
                           colorPalette="blue"
                           onClick={() => handleEdit(room)}
                           aria-label="Editar sala"
@@ -181,9 +181,9 @@ export default function AdminRoomsPage() {
                         </IconButton>
 
                         {/* Botão de Excluir */}
-                        <IconButton 
-                          variant="ghost" 
-                          size="sm" 
+                        <IconButton
+                          variant="ghost"
+                          size="sm"
                           colorPalette="red"
                           onClick={() => handleDelete(room.id)}
                           aria-label="Excluir sala"
@@ -207,9 +207,9 @@ export default function AdminRoomsPage() {
         )}
 
         {/* Modal de Criação/Edição */}
-        <AdminRoomModal 
-          isOpen={isAdminModalOpen} 
-          onClose={() => setIsAdminModalOpen(false)} 
+        <AdminRoomModal
+          isOpen={isAdminModalOpen}
+          onClose={() => setIsAdminModalOpen(false)}
           onSuccess={fetchRooms}
           roomToEdit={roomToEdit} // Passando a sala selecionada (ou null)
         />
