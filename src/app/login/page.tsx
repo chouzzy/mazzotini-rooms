@@ -61,9 +61,9 @@ export default function LoginPage() {
             <Center flexDirection="column" gap={4}>
               <Image src={"/logo.png"} alt="Mazzotini Rooms Logo" mx="auto" maxW={24} />
 
-              <Box bg="blue.600" p={4} borderRadius="full" color="white" shadow="md">
+              {/* <Box bg="blue.600" p={4} borderRadius="full" color="white" shadow="md">
                 <LuLogIn size={32} />
-              </Box>
+              </Box> */}
 
               <Stack gap={1} textAlign="center">
                 <Heading size="2xl">Bem-vindo</Heading>

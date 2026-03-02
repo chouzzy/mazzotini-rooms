@@ -32,7 +32,7 @@ export function Footer() {
                     </Flex>
                     <Flex align="center" gap={3}>
                         <Box color="blue.400"><LuMail size={24} /></Box>
-                        <Text>salas@mazzotiniadvogados.com.br</Text>
+                        <Text>reuniao@mazzotiniadvogados.com.br</Text>
                     </Flex>
                 </Stack>
             </SimpleGrid>
