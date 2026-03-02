@@ -59,7 +59,7 @@ export default function LoginPage() {
         <Card.Root variant="elevated" size="lg" shadow="xl" borderRadius="2xl">
           <Card.Body gap={8} p={8}>
             <Center flexDirection="column" gap={4}>
-              <Image src="/logo.png" alt="Mazzotini Rooms Logo" boxSize="80px" mx="auto" mb={4} />
+              <Image src={"/logo.png"} alt="Mazzotini Rooms Logo" mx="auto" maxW={24} />
 
               <Box bg="blue.600" p={4} borderRadius="full" color="white" shadow="md">
                 <LuLogIn size={32} />
