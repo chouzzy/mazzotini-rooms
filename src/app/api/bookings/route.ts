@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createOnlineMeeting } from '@/lib/microsoftGraph';
-import { sendApprovalEmail, sendRejectionEmail } from '@/lib/email';
+import { sendApprovalEmail, sendRejectionEmail, sendCancellationEmail } from '@/lib/email';
 
 // Criamos o status localmente para evitar bugs de cache/importação do Prisma no Next.js
 const BookingStatus = {
@@ -47,13 +47,10 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.error('❌ ERRO DETALHADO NO GET /api/bookings:', error.message);
 
-    // 🛠️ SISTEMA DE AUTO-CURA (AUTO-HEAL) PARA MONGODB 🛠️
-    // Se o erro for de inconsistência relacional (Sala ou Usuário deletados deixando reservas órfãs)
     if (error.message?.includes('Inconsistent query result')) {
       console.log('🛠️ Iniciando Auto-Heal: Limpando agendamentos órfãos...');
       
       try {
-        // Busca todos os dados "crus" sem tentar cruzar (join)
         const rawBookings = await prisma.booking.findMany();
         const rooms = await prisma.room.findMany({ select: { id: true } });
         const users = await prisma.user.findMany({ select: { id: true } });
@@ -61,17 +58,14 @@ export async function GET(request: Request) {
         const validRoomIds = new Set(rooms.map(r => r.id));
         const validUserIds = new Set(users.map(u => u.id));
         
-        // Descobre quais reservas apontam para salas ou usuários que não existem mais
         const orphanedIds = rawBookings
           .filter(b => !validRoomIds.has(b.roomId) || !validUserIds.has(b.userId))
           .map(b => b.id);
           
         if (orphanedIds.length > 0) {
-          // Deleta a sujeira
           await prisma.booking.deleteMany({ where: { id: { in: orphanedIds } } });
           console.log(`✅ Auto-Heal concluído: ${orphanedIds.length} agendamentos órfãos removidos.`);
           
-          // Tenta buscar a lista novamente de forma limpa
           const healedBookings = await prisma.booking.findMany({
             include: { room: true, user: true },
             orderBy: { startTime: 'asc' },
@@ -103,14 +97,12 @@ export async function POST(request: Request) {
     const start = new Date(startTime);
     const end = new Date(endTime);
 
-    // 🚨 REGRA DE BLOQUEIO: Só barra se a sala já tiver uma reserva APROVADA (CONFIRMED)
-    // Se houver reservas PENDING, o sistema permite a criação para o Admin decidir depois.
     const conflictingBooking = await prisma.booking.findFirst({
       where: {
         roomId,
         status: BookingStatus.CONFIRMED,
-        startTime: { lt: end }, // A reserva existente começa antes da nova terminar
-        endTime: { gt: start }  // E termina depois da nova começar (sobreposição)
+        startTime: { lt: end }, 
+        endTime: { gt: start }  
       },
     });
 
@@ -120,17 +112,9 @@ export async function POST(request: Request) {
       }), { status: 409 });
     }
 
-    // Integração Teams
-    let onlineMeetingUrl = null;
-    if (process.env.AZURE_AD_CLIENT_ID && process.env.TEAMS_ORGANIZER_ID) {
-      try {
-        const meeting = await createOnlineMeeting(title, start, end);
-        onlineMeetingUrl = meeting.joinWebUrl;
-      } catch (e) {
-        console.error("Erro ao criar Teams, salvando sem link", e);
-      }
-    }
-
+    // REMOVIDO: Não criamos mais o link do Teams aqui. 
+    // O agendamento está pendente e não faz sentido bloquear agenda ainda.
+    
     const booking = await prisma.booking.create({
       data: {
         roomId,
@@ -138,7 +122,7 @@ export async function POST(request: Request) {
         title,
         startTime: start,
         endTime: end,
-        onlineMeetingUrl,
+        onlineMeetingUrl: null, // O link será gerado apenas na aprovação
         status: BookingStatus.PENDING
       }
     });
@@ -179,7 +163,6 @@ export async function PUT(request: Request) {
       return new Response(JSON.stringify({ error: 'Agendamento não encontrado' }), { status: 404 });
     }
 
-    // 🚨 TRAVA DE SEGURANÇA NA APROVAÇÃO 🚨
     if (status === BookingStatus.CONFIRMED) {
       const conflictingBooking = await prisma.booking.findFirst({
         where: {
@@ -198,16 +181,50 @@ export async function PUT(request: Request) {
       }
     }
 
+    let meetingLink = booking.onlineMeetingUrl;
+
+    // NOVO: Se foi aprovado e não tem link, criamos a reunião no Teams AGORA
+    if (status === BookingStatus.CONFIRMED && !meetingLink && process.env.AZURE_AD_CLIENT_ID) {
+      try {
+        const meeting = await createOnlineMeeting(
+          booking.title, 
+          booking.startTime, 
+          booking.endTime,
+          booking.user.email // Passamos o email do usuário para convidá-lo para a reunião
+        );
+        meetingLink = meeting.joinWebUrl;
+      } catch (e) {
+        console.error("Erro ao criar Teams na aprovação:", e);
+      }
+    }
+
+    // Atualizamos a reserva com o novo status e o link do Teams
     const updatedBooking = await prisma.booking.update({
       where: { id },
-      data: { status: status as any }
+      data: { 
+        status: status as any,
+        onlineMeetingUrl: meetingLink 
+      }
     });
 
     if (booking.user.email) {
       if (status === BookingStatus.CONFIRMED) {
-        await sendApprovalEmail(booking.user.email, booking.title, booking.room.name);
+        await sendApprovalEmail(
+          booking.user.email, 
+          booking.title, 
+          booking.room.name,
+          booking.startTime,
+          booking.endTime,
+          meetingLink
+        );
       } else if (status === BookingStatus.REJECTED) {
-        await sendRejectionEmail(booking.user.email, booking.title);
+        await sendRejectionEmail(
+          booking.user.email, 
+          booking.title, 
+          booking.room.name,
+          booking.startTime,
+          booking.endTime
+        );
       }
     }
 
@@ -224,7 +241,7 @@ export async function PUT(request: Request) {
           startTime: { lt: end }, 
           endTime: { gt: start }
         },
-        include: { user: true }
+        include: { user: true, room: true } 
       });
 
       if (conflictingPendings.length > 0) {
@@ -237,7 +254,13 @@ export async function PUT(request: Request) {
 
         for (const competitor of conflictingPendings) {
           if (competitor.user.email) {
-            await sendRejectionEmail(competitor.user.email, competitor.title);
+            await sendRejectionEmail(
+              competitor.user.email, 
+              competitor.title,
+              competitor.room.name,
+              competitor.startTime,
+              competitor.endTime
+            );
           }
         }
       }
@@ -263,12 +286,30 @@ export async function DELETE(request: Request) {
       return new Response(JSON.stringify({ error: 'ID do agendamento é obrigatório' }), { status: 400 });
     }
 
-    const existing = await prisma.booking.findUnique({ where: { id } });
+    // Precisamos incluir o usuário e a sala para conseguir os dados para o e-mail
+    const existing = await prisma.booking.findUnique({ 
+      where: { id },
+      include: { user: true, room: true } 
+    });
+    
     if (!existing) {
       return new Response(JSON.stringify({ error: 'Agendamento não encontrado' }), { status: 404 });
     }
 
+    // Deleta a reserva do banco
     await prisma.booking.delete({ where: { id } });
+
+    // Dispara o e-mail de cancelamento para o usuário
+    if (existing.user.email) {
+      await sendCancellationEmail(
+        existing.user.email,
+        existing.title,
+        existing.room.name,
+        existing.startTime,
+        existing.endTime
+      );
+    }
+
     return new Response(null, { status: 204 });
   } catch (error) {
     console.error('❌ ERRO DETALHADO NO DELETE /api/bookings:', error);

@@ -38,33 +38,53 @@ export async function getMicrosoftToken(): Promise<string> {
     const data = await response.json();
     return data.access_token;
   } catch (error) {
-    console.error("Erro no getMicrosoftToken:", error);
+    console.error("Erro ao obter token:", error);
     throw error;
   }
 }
 
-// 2. Helper para Criar Reunião no Teams
-export async function createOnlineMeeting(subject: string, startTime: Date, endTime: Date): Promise<OnlineMeeting> {
+// 2. Helper para Criar Reunião no Teams e Calendário
+export async function createOnlineMeeting(
+  subject: string, 
+  startTime: Date, 
+  endTime: Date, 
+  attendeeEmail?: string | null // <-- Novo parâmetro!
+): Promise<any> {
   try {
     const token = await getMicrosoftToken();
 
-    // O ID do usuário organizador deve estar no .env
     const organizerId = process.env.TEAMS_ORGANIZER_ID; 
     
     if (!organizerId) {
         console.warn("TEAMS_ORGANIZER_ID não configurado. Pulando criação de reunião Teams.");
-        // Retorna um objeto "fake" para não quebrar o fluxo em desenvolvimento
         return { id: "mock-id", joinWebUrl: "", subject }; 
     }
 
-    const meetingEndpoint = `https://graph.microsoft.com/v1.0/users/${organizerId}/onlineMeetings`;
+    const meetingEndpoint = `https://graph.microsoft.com/v1.0/users/${organizerId}/events`;
 
-    const meetingData = {
-      startDateTime: startTime.toISOString(),
-      endDateTime: endTime.toISOString(),
+    const meetingData: any = {
       subject: subject,
-      isEntryExitAnnounced: true,
+      start: {
+        dateTime: startTime.toISOString(),
+        timeZone: "UTC"
+      },
+      end: {
+        dateTime: endTime.toISOString(),
+        timeZone: "UTC"
+      },
+      isOnlineMeeting: true,
+      onlineMeetingProvider: "teamsForBusiness"
     };
+
+    // MAGIA AQUI: Adiciona o usuário que solicitou a reserva como "Convidado Obrigatório"
+    if (attendeeEmail) {
+      meetingData.attendees = [
+        {
+          emailAddress: { address: attendeeEmail },
+          type: "required"
+        }
+      ];
+    }
 
     const response = await fetch(meetingEndpoint, {
       method: "POST",
@@ -77,14 +97,14 @@ export async function createOnlineMeeting(subject: string, startTime: Date, endT
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Erro ao criar reunião no Teams: ${errorText}`);
+      throw new Error(`Erro ao criar reunião no Teams/Calendário: ${errorText}`);
     }
 
     const data = await response.json();
     
     return {
       id: data.id,
-      joinWebUrl: data.joinWebUrl,
+      joinWebUrl: data.onlineMeeting?.joinUrl || "",
       subject: data.subject
     };
 

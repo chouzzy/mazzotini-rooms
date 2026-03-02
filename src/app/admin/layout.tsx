@@ -1,9 +1,8 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { Box, Container, Alert, AlertTitle, AlertDescription, Flex } from "@chakra-ui/react"; // Chakra v3 updates below
+import { Box, Flex } from "@chakra-ui/react";
 import { AdminSidebar } from "@/components/AdminSideBar";
-import Navbar from "@/components/Navbar";
 
 export default async function AdminLayout({
   children,
@@ -20,12 +19,17 @@ export default async function AdminLayout({
 
   // Se for ADMIN, renderiza a página normalmente
   return (
-    <Flex flexDir={'column'} minH="100vh" bg="gray.50" w='100%'>
-      <AdminSidebar />
-      {/* Conteúdo Principal (empurrado 250px para a direita) */}
-      <Box ml="250px" p={8}>
+    <Flex minH="100vh" bg="gray.50" w="100%">
+      <Box 
+        flex="1" 
+        // No celular a margem é 0, no desktop (md) empurra os 250px da Sidebar
+        ml={{ base: 0, md: "250px" }} 
+        // Padding menor no celular para ganhar espaço
+        p={{ base: 4, md: 8 }}
+        w="full"
+      >
         {children}
       </Box>
     </Flex>
-  )
+  );
 }

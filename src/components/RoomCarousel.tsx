@@ -60,7 +60,7 @@ export default function RoomCarousel() {
   return (
     <Box mx='auto' maxW="8xl" position="relative" w="full">
       <Flex justify="space-between" align="center" mb={6}>
-        <Heading size="lg">Salas em Destaque</Heading>
+        <Heading size={{ base: 'md', md: 'lg' }}>Salas em Destaque</Heading>
         <Link href="/salas">
           <Button variant="ghost" colorPalette="blue" size="sm">
             Ver todas
@@ -70,7 +70,7 @@ export default function RoomCarousel() {
 
       {/* Container de Scroll Horizontal */}
       <Flex
-        gap={6}
+        gap={4}
         overflowX="auto"
         pb={4}
         scrollSnapType="x mandatory"
@@ -82,7 +82,7 @@ export default function RoomCarousel() {
         }}
       >
         {rooms.map((room) => (
-          <Box key={room.id} minW={{ base: "300px", md: "350px" }} scrollSnapAlign="start">
+          <Box key={room.id} minW={{ base: "85vw", sm: "300px", md: "350px" }} scrollSnapAlign="start">
             <Card.Root variant="outline" overflow="hidden" h="full" _hover={{ shadow: 'md', transition: 'shadow 0.2s' }}>
               <Link href={`/salas/${room.id}`} passHref>
                 <Box height="160px" bg="gray.100" position="relative" cursor="pointer">
