@@ -285,7 +285,7 @@ export default function AdminDashboardPage() {
 
       <Box mb={8}>
         <Heading size="md" mb={4} color="gray.700">
-          {activeTab === 'PENDING' && 'Ações Pendentes (Ordene por Urgência)'}
+          {activeTab === 'PENDING' && 'Reservas Pendentes'}
           {activeTab === 'CONFIRMED' && 'Lista de Reservas Aprovadas'}
           {activeTab === 'PAST' && 'Histórico de Reservas Realizadas ou Expiradas'}
           {activeTab === 'REJECTED' && 'Histórico de Rejeições'}
