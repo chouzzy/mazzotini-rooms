@@ -22,8 +22,6 @@ export default async function AdminLayout({
     <Flex minH="100vh" bg="gray.50" w="100%">
       <Box 
         flex="1" 
-        // No celular a margem é 0, no desktop (md) empurra os 250px da Sidebar
-        ml={{ base: 0, md: "250px" }} 
         // Padding menor no celular para ganhar espaço
         p={{ base: 4, md: 8 }}
         w="full"
