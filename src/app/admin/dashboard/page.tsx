@@ -5,7 +5,10 @@ import {
   Box, Heading, Table, Badge, Button, Flex, 
   Spinner, Center, Text, Stack, SimpleGrid, Card
 } from '@chakra-ui/react';
-import { LuCheck, LuX, LuClock, LuCalendarCheck, LuBan, LuPrinter } from "react-icons/lu";
+import { 
+  LuCheck, LuX, LuClock, LuCalendarCheck, 
+  LuBan, LuPrinter, LuHistory, LuTimer 
+} from "react-icons/lu";
 import { toaster } from '@/components/ui/toaster';
 
 interface Booking {
@@ -30,7 +33,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'PENDING' | 'CONFIRMED' | 'REJECTED'>('PENDING');
+  const [activeTab, setActiveTab] = useState<'PENDING' | 'CONFIRMED' | 'PAST' | 'REJECTED'>('PENDING');
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -48,6 +51,10 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     fetchBookings();
+    
+    // Atualiza a tela a cada 1 minuto para os cronômetros de urgência não ficarem congelados
+    const interval = setInterval(() => setBookings(b => [...b]), 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleUpdateStatus = async (id: string, newStatus: 'CONFIRMED' | 'REJECTED') => {
@@ -79,7 +86,7 @@ export default function AdminDashboardPage() {
   };
 
   // -------------------------------------------------------------
-  // MÁGICA DE GERAÇÃO DE PDF NATIVA PARA A COPA (AGORA DINÂMICA)
+  // MÁGICA DE GERAÇÃO DE PDF NATIVA PARA A COPA
   // -------------------------------------------------------------
   const handleGenerateCopaPDF = (booking: Booking) => {
     const printWindow = window.open('', '_blank');
@@ -90,32 +97,23 @@ export default function AdminDashboardPage() {
 
     const start = new Date(booking.startTime).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
     const end = new Date(booking.endTime).toLocaleString('pt-BR', { timeStyle: 'short' });
-    
-    // Captura a URL base do site para injetar a logo corretamente na impressão
     const baseUrl = window.location.origin;
     
-    // Processamento Dinâmico das Comodidades (Amenities)
     const amenities = booking.room.amenities || [];
     const amenitiesText = amenities.length > 0 ? amenities.join(' • ') : 'Nenhum recurso extra listado';
     const amenitiesLower = amenities.map(a => a.toLowerCase());
 
-    console.log("Room stringfado para PDF:", JSON.stringify(booking.room));
-
-    // Constrói o checklist base
     let checklistHtml = `
-      <li><span class="box"></span> Limpeza da sala e alinhamento de <strong style="padding: 0 2px;"> ${booking.room.capacity} cadeiras</strong></li>
+      <li><span class="box"></span> Limpeza da sala e alinhamento de <strong>${booking.room.capacity} cadeiras</strong></li>
       <li><span class="box"></span> Verificação de lixeiras e controle do Ar Condicionado posicionado</li>
     `;
 
-    // Adiciona itens ao checklist baseados no que a sala possui
     if (amenitiesLower.some(a => a.includes('café') || a.includes('água'))) {
       checklistHtml += `<li><span class="box"></span> Preparar garrafa de café fresco, água e copos/xícaras suficientes para ${booking.room.capacity} pessoas</li>`;
     }
-    
     if (amenitiesLower.some(a => a.includes('tv') || a.includes('hdmi') || a.includes('vídeo') || a.includes('video'))) {
-      checklistHtml += `<li><span class="box"></span> Ligar e testar a TV/Projetor/Videoconferência e verificar se cabos (HDMI) estão na mesa</li>`;
+      checklistHtml += `<li><span class="box"></span> Ligar e testar a TV/Projetor/Videoconferência e verificar cabos na mesa</li>`;
     }
-    
     if (amenitiesLower.some(a => a.includes('quadro'))) {
       checklistHtml += `<li><span class="box"></span> Verificar apagador limpo e canetas de quadro branco com tinta</li>`;
     }
@@ -147,52 +145,55 @@ export default function AdminDashboardPage() {
             @media print {
               @page { margin: 1.5cm; }
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .card { border-color: #000; background: transparent; }
-              .amenities-box { border-color: #000; background: transparent; }
             }
           </style>
         </head>
         <body>
           <div class="header">
-            <!-- Tenta carregar a imagem, se falhar por causa da rota, não quebra o layout -->
             <img src="${baseUrl}/logo.png" onerror="this.style.display='none'" alt="Mazzotini Advogados Logo" />
             <h1 class="title">Ordem de Serviço (OS)</h1>
             <p class="subtitle">Preparação de Apoio / Copa</p>
           </div>
-
           <div class="card">
             <div class="row"><span class="label">Assunto:</span> <span class="value">${booking.title}</span></div>
             <div class="row"><span class="label">Espaço:</span> <span class="value">${booking.room.name} (Capacidade: ${booking.room.capacity})</span></div>
             <div class="row"><span class="label">Solicitante:</span> <span class="value">${booking.user.name || booking.user.email}</span></div>
             <div class="row"><span class="label">Horário:</span> <span class="value">${start} até ${end}</span></div>
           </div>
-          
-          <div class="amenities-box">
-             <p><strong>Recursos da Sala:</strong> ${amenitiesText}</p>
-          </div>
-
+          <div class="amenities-box"><p><strong>Recursos da Sala:</strong> ${amenitiesText}</p></div>
           <h3>Checklist de Preparação Focada:</h3>
-          <ul class="checklist">
-            ${checklistHtml}
-          </ul>
-
+          <ul class="checklist">${checklistHtml}</ul>
           <div class="footer">
             <div class="signature-line"></div>
             <p style="font-size: 14px; color: #64748b; margin:0;">Assinatura do Responsável (Copa/Apoio)</p>
           </div>
-          
-          <script>
-            // Dá um milissegundo extra para a imagem carregar antes de chamar o painel de impressão
-            setTimeout(function() {
-              window.print();
-            }, 500);
-          </script>
+          <script>setTimeout(function() { window.print(); }, 500);</script>
         </body>
       </html>
     `;
-
     printWindow.document.write(htmlContent);
     printWindow.document.close();
+  };
+
+  // -------------------------------------------------------------
+  // LÓGICA DE TEMPO, URGÊNCIA E SEPARAÇÃO DE TABS
+  // -------------------------------------------------------------
+  const now = new Date();
+
+  // Helper para calcular quanto tempo falta (Usado na urgência)
+  const getUrgency = (dateString: string) => {
+    const diffMs = new Date(dateString).getTime() - now.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins <= 0) return null; // Já passou, vai cair na aba PAST
+    
+    if (diffMins <= 60) return { text: `Em ${diffMins} min`, color: 'red' }; // Urgente!
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return { text: `Em ${diffHours} h`, color: 'orange' }; // Hoje
+    
+    const diffDays = Math.floor(diffHours / 24);
+    return { text: `Em ${diffDays} dias`, color: 'blue' }; // Futuro tranquilo
   };
 
   const formatDate = (dateString: string) => {
@@ -202,11 +203,22 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const pendingBookings = bookings.filter(b => b.status === 'PENDING');
-  const confirmedBookings = bookings.filter(b => b.status === 'CONFIRMED');
-  const rejectedBookings = bookings.filter(b => b.status === 'REJECTED');
+  // Categorização das Reservas
+  const pendingBookings = bookings.filter(b => b.status === 'PENDING' && new Date(b.startTime) >= now);
+  const confirmedBookings = bookings.filter(b => b.status === 'CONFIRMED' && new Date(b.endTime) >= now);
+  
+  // Reservas que já passaram do tempo (Vencidas / Realizadas)
+  const pastBookings = bookings.filter(b => 
+    (b.status === 'PENDING' && new Date(b.startTime) < now) || 
+    (b.status === 'CONFIRMED' && new Date(b.endTime) < now)
+  ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()); // As mais recentes primeiro
 
-  const currentList = activeTab === 'PENDING' ? pendingBookings : activeTab === 'CONFIRMED' ? confirmedBookings : rejectedBookings;
+  const rejectedBookings = bookings.filter(b => b.status === 'REJECTED' || b.status === 'CANCELLED');
+
+  const currentList = activeTab === 'PENDING' ? pendingBookings 
+                    : activeTab === 'CONFIRMED' ? confirmedBookings 
+                    : activeTab === 'PAST' ? pastBookings
+                    : rejectedBookings;
 
   return (
     <Box>
@@ -214,48 +226,68 @@ export default function AdminDashboardPage() {
         <Heading size="lg" color="gray.800">Visão Geral & Aprovações</Heading>
       </Flex>
 
-      <SimpleGrid columns={{ base: 1, md: 3 }} gap={6} mb={8}>
+      {/* 4 CARDS DE RESUMO AGORA */}
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} gap={4} mb={8}>
+        
+        {/* Card PENDENTES */}
         <Card.Root cursor="pointer" onClick={() => setActiveTab('PENDING')} borderWidth="2px" borderColor={activeTab === 'PENDING' ? 'yellow.400' : 'transparent'} bg={activeTab === 'PENDING' ? 'yellow.50' : 'white'}>
-          <Card.Body>
+          <Card.Body p={4}>
             <Flex align="center" justify="space-between">
               <Box>
-                <Text color="fg.muted" fontSize="sm" fontWeight="medium">Aguardam Aprovação</Text>
-                <Heading size="2xl" color="yellow.600">{pendingBookings.length}</Heading>
+                <Text color="fg.muted" fontSize="xs" fontWeight="bold" textTransform="uppercase">Aguardam Aprovação</Text>
+                <Heading size="xl" color="yellow.600">{pendingBookings.length}</Heading>
               </Box>
-              <Box p={3} bg="yellow.100" color="yellow.600" borderRadius="md"><LuClock size={24} /></Box>
+              <Box p={3} bg="yellow.100" color="yellow.600" borderRadius="md"><LuClock size={20} /></Box>
             </Flex>
           </Card.Body>
         </Card.Root>
 
+        {/* Card APROVADAS */}
         <Card.Root cursor="pointer" onClick={() => setActiveTab('CONFIRMED')} borderWidth="2px" borderColor={activeTab === 'CONFIRMED' ? 'green.400' : 'transparent'} bg={activeTab === 'CONFIRMED' ? 'green.50' : 'white'}>
-          <Card.Body>
+          <Card.Body p={4}>
             <Flex align="center" justify="space-between">
               <Box>
-                <Text color="fg.muted" fontSize="sm" fontWeight="medium">Reservas Aprovadas</Text>
-                <Heading size="2xl" color="green.600">{confirmedBookings.length}</Heading>
+                <Text color="fg.muted" fontSize="xs" fontWeight="bold" textTransform="uppercase">Aprovadas (Futuras)</Text>
+                <Heading size="xl" color="green.600">{confirmedBookings.length}</Heading>
               </Box>
-              <Box p={3} bg="green.100" color="green.600" borderRadius="md"><LuCalendarCheck size={24} /></Box>
+              <Box p={3} bg="green.100" color="green.600" borderRadius="md"><LuCalendarCheck size={20} /></Box>
             </Flex>
           </Card.Body>
         </Card.Root>
 
-        <Card.Root cursor="pointer" onClick={() => setActiveTab('REJECTED')} borderWidth="2px" borderColor={activeTab === 'REJECTED' ? 'red.400' : 'transparent'} bg={activeTab === 'REJECTED' ? 'red.50' : 'white'}>
-          <Card.Body>
+        {/* Card HISTÓRICO / VENCIDAS */}
+        <Card.Root cursor="pointer" onClick={() => setActiveTab('PAST')} borderWidth="2px" borderColor={activeTab === 'PAST' ? 'gray.400' : 'transparent'} bg={activeTab === 'PAST' ? 'gray.50' : 'white'}>
+          <Card.Body p={4}>
             <Flex align="center" justify="space-between">
               <Box>
-                <Text color="fg.muted" fontSize="sm" fontWeight="medium">Reservas Rejeitadas</Text>
-                <Heading size="2xl" color="red.600">{rejectedBookings.length}</Heading>
+                <Text color="fg.muted" fontSize="xs" fontWeight="bold" textTransform="uppercase">Histórico / Vencidas</Text>
+                <Heading size="xl" color="gray.600">{pastBookings.length}</Heading>
               </Box>
-              <Box p={3} bg="red.100" color="red.600" borderRadius="md"><LuBan size={24} /></Box>
+              <Box p={3} bg="gray.200" color="gray.600" borderRadius="md"><LuHistory size={20} /></Box>
             </Flex>
           </Card.Body>
         </Card.Root>
+
+        {/* Card REJEITADAS */}
+        <Card.Root cursor="pointer" onClick={() => setActiveTab('REJECTED')} borderWidth="2px" borderColor={activeTab === 'REJECTED' ? 'red.400' : 'transparent'} bg={activeTab === 'REJECTED' ? 'red.50' : 'white'}>
+          <Card.Body p={4}>
+            <Flex align="center" justify="space-between">
+              <Box>
+                <Text color="fg.muted" fontSize="xs" fontWeight="bold" textTransform="uppercase">Rejeitadas / Canc.</Text>
+                <Heading size="xl" color="red.600">{rejectedBookings.length}</Heading>
+              </Box>
+              <Box p={3} bg="red.100" color="red.600" borderRadius="md"><LuBan size={20} /></Box>
+            </Flex>
+          </Card.Body>
+        </Card.Root>
+
       </SimpleGrid>
 
       <Box mb={8}>
         <Heading size="md" mb={4} color="gray.700">
-          {activeTab === 'PENDING' && 'Ações Pendentes'}
+          {activeTab === 'PENDING' && 'Ações Pendentes (Ordene por Urgência)'}
           {activeTab === 'CONFIRMED' && 'Lista de Reservas Aprovadas'}
+          {activeTab === 'PAST' && 'Histórico de Reservas Realizadas ou Expiradas'}
           {activeTab === 'REJECTED' && 'Histórico de Rejeições'}
         </Heading>
 
@@ -273,63 +305,80 @@ export default function AdminDashboardPage() {
                   <Table.ColumnHeader whiteSpace="nowrap">Reunião & Sala</Table.ColumnHeader>
                   <Table.ColumnHeader whiteSpace="nowrap">Requerente</Table.ColumnHeader>
                   <Table.ColumnHeader whiteSpace="nowrap">Data e Hora</Table.ColumnHeader>
-                  <Table.ColumnHeader textAlign="right" whiteSpace="nowrap">Ação / Status</Table.ColumnHeader>
+                  <Table.ColumnHeader textAlign="right" whiteSpace="nowrap">Status / Ação</Table.ColumnHeader>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
-                {currentList.map((booking) => (
-                  <Table.Row key={booking.id}>
-                    <Table.Cell>
-                      <Text fontWeight="bold" whiteSpace="nowrap">{booking.title}</Text>
-                      <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">{booking.room.name}</Text>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <Text whiteSpace="nowrap">{booking.user?.name || 'Usuário Desconhecido'}</Text>
-                      <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">{booking.user?.email}</Text>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <Text whiteSpace="nowrap">{formatDate(booking.startTime)}</Text>
-                      <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">até {formatDate(booking.endTime)}</Text>
-                    </Table.Cell>
-                    <Table.Cell textAlign="right">
-                      
-                      {activeTab === 'PENDING' && (
-                        <Stack direction="row" gap={2} justify="flex-end">
-                          <Button size="sm" colorPalette="green" onClick={() => handleUpdateStatus(booking.id, 'CONFIRMED')} loading={processingId === booking.id}>
-                            <LuCheck /> Aprovar
-                          </Button>
-                          <Button size="sm" colorPalette="red" variant="outline" onClick={() => handleUpdateStatus(booking.id, 'REJECTED')} loading={processingId === booking.id}>
-                            <LuX /> Rejeitar
-                          </Button>
-                        </Stack>
-                      )}
+                {currentList.map((booking) => {
+                  const urgency = activeTab === 'PENDING' ? getUrgency(booking.startTime) : null;
 
-                      {activeTab === 'CONFIRMED' && (
-                        <Stack direction="row" gap={2} justify="flex-end" align="center">
-                          {/* BOTÃO DO PDF PARA A COPA AQUI */}
-                          <Button 
-                            size="sm" 
-                            colorPalette="blue" 
-                            variant="outline"
-                            title="Gerar Ordem de Serviço para a Copa"
-                            onClick={() => handleGenerateCopaPDF(booking)}
-                          >
-                            <LuPrinter /> Ordem Copa
-                          </Button>
-                          
-                          <Button size="sm" colorPalette="red" variant="ghost" title="Revogar Aprovação" onClick={() => handleCancelApproved(booking.id)} loading={processingId === booking.id}>
-                            <LuBan /> Cancelar
-                          </Button>
-                        </Stack>
-                      )}
+                  return (
+                    <Table.Row key={booking.id}>
+                      <Table.Cell>
+                        <Text fontWeight="bold" whiteSpace="nowrap">{booking.title}</Text>
+                        <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">{booking.room.name}</Text>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Text whiteSpace="nowrap">{booking.user?.name || 'Usuário Desconhecido'}</Text>
+                        <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">{booking.user?.email}</Text>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Flex direction="column" gap={1}>
+                          <Text whiteSpace="nowrap">{formatDate(booking.startTime)}</Text>
+                          <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">até {formatDate(booking.endTime)}</Text>
+                        </Flex>
+                      </Table.Cell>
+                      <Table.Cell textAlign="right">
+                        
+                        {/* AÇÕES DA ABA PENDENTE (Com Urgência) */}
+                        {activeTab === 'PENDING' && (
+                          <Flex direction="column" align="flex-end" gap={2}>
+                            {urgency && (
+                              <Badge colorPalette={urgency.color} size="sm" variant="solid">
+                                <LuTimer style={{ marginRight: '4px' }} /> {urgency.text}
+                              </Badge>
+                            )}
+                            <Stack direction="row" gap={2}>
+                              <Button size="sm" colorPalette="green" onClick={() => handleUpdateStatus(booking.id, 'CONFIRMED')} loading={processingId === booking.id}>
+                                <LuCheck /> Aprovar
+                              </Button>
+                              <Button size="sm" colorPalette="red" variant="outline" onClick={() => handleUpdateStatus(booking.id, 'REJECTED')} loading={processingId === booking.id}>
+                                <LuX /> Rejeitar
+                              </Button>
+                            </Stack>
+                          </Flex>
+                        )}
 
-                      {activeTab === 'REJECTED' && (
-                        <Badge colorPalette="red" size="sm">Rejeitada</Badge>
-                      )}
+                        {/* AÇÕES DA ABA APROVADAS */}
+                        {activeTab === 'CONFIRMED' && (
+                          <Stack direction="row" gap={2} justify="flex-end" align="center">
+                            <Button size="sm" colorPalette="blue" variant="outline" title="Gerar Ordem de Serviço para a Copa" onClick={() => handleGenerateCopaPDF(booking)}>
+                              <LuPrinter /> Ordem Copa
+                            </Button>
+                            <Button size="sm" colorPalette="red" variant="ghost" title="Revogar Aprovação" onClick={() => handleCancelApproved(booking.id)} loading={processingId === booking.id}>
+                              <LuBan /> Cancelar
+                            </Button>
+                          </Stack>
+                        )}
 
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
+                        {/* STATUS DA ABA HISTÓRICO / VENCIDAS */}
+                        {activeTab === 'PAST' && (
+                          <Badge colorPalette={booking.status === 'CONFIRMED' ? 'green' : 'gray'} size="sm">
+                            {booking.status === 'CONFIRMED' ? 'Realizada' : 'Expirou sem Aprovação'}
+                          </Badge>
+                        )}
+
+                        {/* STATUS DA ABA REJEITADAS */}
+                        {activeTab === 'REJECTED' && (
+                          <Badge colorPalette="red" size="sm">
+                            {booking.status === 'REJECTED' ? 'Rejeitada' : 'Cancelada pelo Usuário'}
+                          </Badge>
+                        )}
+
+                      </Table.Cell>
+                    </Table.Row>
+                  );
+                })}
               </Table.Body>
             </Table.Root>
           </Box>
