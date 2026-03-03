@@ -1,216 +1,163 @@
 'use client';
 
-import { useState, ChangeEvent, useEffect } from 'react';
-import {
-  Dialog,
-  Button,
-  Input,
-  Stack,
-  Textarea,
-  Image,
-  Box,
-  Field,
-  Spinner,
-  Center,
-  Text
+import { useState, useEffect } from 'react';
+import { 
+  Dialog, Button, Input, Textarea, Stack, Field, Flex, SimpleGrid, Icon, Box, Center, Spinner, Text, Image
 } from '@chakra-ui/react';
-import { LuImagePlus, LuX } from "react-icons/lu";
-import { toaster } from './ui/toaster';
+import { toaster } from '@/components/ui/toaster';
+import { LuWifi, LuMonitorPlay, LuCoffee, LuPresentation, LuVideo, LuAccessibility, LuImagePlus, LuX } from 'react-icons/lu';
 
-// Interface local (idealmente estaria em types/index.ts, mas mantemos aqui pela simplicidade do MVP)
 interface Room {
-  id: string;
+  id?: string;
   name: string;
   capacity: number;
   description: string;
   isActive: boolean;
   imageUrl?: string;
+  amenities?: string[];
 }
 
 interface AdminRoomModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  roomToEdit?: Room | null; // Nova prop opcional
+  roomToEdit: Room | null;
 }
 
+const AVAILABLE_AMENITIES = [
+  { id: 'Wi-Fi de alta velocidade', icon: LuWifi },
+  { id: 'TV / Projetor HDMI', icon: LuMonitorPlay },
+  { id: 'Água e Café', icon: LuCoffee },
+  { id: 'Quadro Branco', icon: LuPresentation },
+  { id: 'Videoconferência', icon: LuVideo },
+  { id: 'Acessibilidade', icon: LuAccessibility },
+];
+
 export default function AdminRoomModal({ isOpen, onClose, onSuccess, roomToEdit }: AdminRoomModalProps) {
-  const [loading, setLoading] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [formData, setFormData] = useState<Room>({
+    name: '',
+    capacity: 4,
+    description: '',
+    isActive: true,
+    imageUrl: '',
+    amenities: [],
+  });
   
-  // Estados do Formulário
-  const [name, setName] = useState('');
-  const [capacity, setCapacity] = useState('');
-  const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [isActive, setIsActive] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false); // Estado para controlar o loading da imagem
 
-  // Efeito para carregar dados quando o modal abre
   useEffect(() => {
-    if (isOpen) {
-      if (roomToEdit) {
-        // Modo Edição: Preenche com dados existentes
-        setName(roomToEdit.name);
-        setCapacity(roomToEdit.capacity.toString());
-        setDescription(roomToEdit.description || '');
-        setImageUrl(roomToEdit.imageUrl || '');
-        setIsActive(roomToEdit.isActive);
-      } else {
-        // Modo Criação: Limpa tudo
-        setName('');
-        setCapacity('');
-        setDescription('');
-        setImageUrl('');
-        setIsActive(true);
-      }
+    if (roomToEdit) {
+      setFormData({
+        ...roomToEdit,
+        amenities: roomToEdit.amenities || [],
+      });
+    } else {
+      setFormData({
+        name: '', capacity: 4, description: '', isActive: true, imageUrl: '', amenities: []
+      });
     }
-  }, [isOpen, roomToEdit]);
+  }, [roomToEdit, isOpen]);
 
-  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const toggleAmenity = (amenityId: string) => {
+    setFormData(prev => {
+      const current = prev.amenities || [];
+      if (current.includes(amenityId)) {
+        return { ...prev, amenities: current.filter(a => a !== amenityId) };
+      } else {
+        return { ...prev, amenities: [...current, amenityId] };
+      }
+    });
+  };
+
+  // ------------------------------------------------------------------
+  // NOVA FUNÇÃO: Faz o upload real da imagem para o Digital Ocean
+  // ------------------------------------------------------------------
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      toaster.create({ title: 'Apenas imagens são permitidas', type: 'error' });
+      return;
+    }
+
     setUploadingImage(true);
-    const formData = new FormData();
-    formData.append('file', file);
+    const formDataPayload = new FormData();
+    formDataPayload.append('file', file);
 
     try {
       const res = await fetch('/api/upload', {
         method: 'POST',
-        body: formData,
+        body: formDataPayload,
       });
 
-      if (!res.ok) throw new Error('Falha no upload da imagem');
+      if (!res.ok) throw new Error('Falha no upload');
 
       const data = await res.json();
-      setImageUrl(data.url);
       
-      toaster.create({
-        title: 'Imagem carregada',
-        type: 'success',
-      });
+      // Salva a URL retornada pela API no estado do formulário
+      setFormData(prev => ({ ...prev, imageUrl: data.url }));
+      toaster.create({ title: 'Imagem enviada com sucesso', type: 'success' });
+      
     } catch (error) {
-      toaster.create({
-        title: 'Erro no upload',
-        description: 'Não foi possível enviar a imagem para o servidor.',
-        type: 'error',
-      });
+      console.error(error);
+      toaster.create({ title: 'Erro ao enviar imagem', type: 'error' });
     } finally {
       setUploadingImage(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!name || !capacity) {
-      toaster.create({
-        title: 'Campos obrigatórios',
-        description: 'Nome e Capacidade são necessários.',
-        type: 'warning',
-      });
+    if (!formData.name || !formData.capacity) {
+      toaster.create({ title: 'Preencha os campos obrigatórios', type: 'warning' });
       return;
     }
 
     setLoading(true);
     try {
-      // Decide se é POST (Criar) ou PUT (Atualizar)
-      const method = roomToEdit ? 'PUT' : 'POST';
-      
-      const body: any = {
-        name,
-        capacity: Number(capacity),
-        description,
-        imageUrl,
-        isActive
-      };
+      const url = formData.id ? `/api/rooms?id=${formData.id}` : '/api/rooms';
+      const method = formData.id ? 'PUT' : 'POST';
 
-      // Se for edição, precisamos enviar o ID
-      if (roomToEdit) {
-        body.id = roomToEdit.id;
-      }
-
-      const res = await fetch('/api/rooms', {
-        method: method,
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          ...formData,
+          capacity: Number(formData.capacity)
+        }),
       });
 
-      if (!res.ok) throw new Error(`Falha ao ${roomToEdit ? 'atualizar' : 'criar'} sala`);
+      if (!res.ok) throw new Error('Falha ao salvar a sala');
 
-      toaster.create({
-        title: 'Sucesso',
-        description: `Sala ${roomToEdit ? 'atualizada' : 'cadastrada'} com sucesso!`,
-        type: 'success',
-      });
-
+      toaster.create({ title: 'Sala salva com sucesso!', type: 'success' });
       onSuccess();
-      onClose(); // Não limpamos manualmente aqui pois o useEffect cuida disso ao reabrir
+      onClose();
     } catch (error) {
-      toaster.create({
-        title: 'Erro',
-        type: 'error',
-      });
+      toaster.create({ title: 'Erro ao salvar', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()} size="lg">
-      <Dialog.Backdrop />
+    <Dialog.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()}>
+      <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(2px)" />
       <Dialog.Positioner>
-        <Dialog.Content>
+        <Dialog.Content maxW="lg" borderRadius="xl">
           <Dialog.Header>
-            <Dialog.Title>{roomToEdit ? 'Editar Sala' : 'Cadastrar Nova Sala'}</Dialog.Title>
+            <Dialog.Title>{roomToEdit ? 'Editar Sala' : 'Nova Sala'}</Dialog.Title>
           </Dialog.Header>
           <Dialog.CloseTrigger />
           
           <Dialog.Body>
             <Stack gap={4}>
-              <Field.Root required>
-                <Field.Label>Nome da Sala</Field.Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Sala de Vidro" />
-              </Field.Root>
-
-              <Field.Root required>
-                <Field.Label>Capacidade</Field.Label>
-                <Input type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="Ex: 8" />
-              </Field.Root>
-
-              <Field.Root>
-                <Field.Label>Descrição</Field.Label>
-                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Detalhes da sala..." />
-              </Field.Root>
-
-              {/* Campo de Status (Ativa/Inativa) */}
-              <Field.Root>
-                 <Field.Label>Status</Field.Label>
-                 <Box 
-                   as="label" 
-                   display="flex" 
-                   alignItems="center" 
-                   cursor="pointer" 
-                   gap={3}
-                   borderWidth="1px"
-                   borderRadius="md"
-                   p={3}
-                   _hover={{ bg: "bg.subtle" }}
-                 >
-                   <input 
-                     type="checkbox" 
-                     checked={isActive} 
-                     onChange={(e) => setIsActive(e.target.checked)}
-                     style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                   />
-                   <Box as="span" fontWeight="medium" fontSize="sm">
-                     Sala Ativa (Disponível para reservas)
-                   </Box>
-                 </Box>
-              </Field.Root>
-
+              
+              {/* O UPLOAD DE IMAGEM MODERNO VOLTOU AQUI */}
               <Field.Root>
                 <Field.Label>Foto da Sala</Field.Label>
                 
-                {!imageUrl ? (
+                {!formData.imageUrl ? (
                   <Box 
                     borderWidth="2px" 
                     borderStyle="dashed" 
@@ -234,43 +181,84 @@ export default function AdminRoomModal({ isOpen, onClose, onSuccess, roomToEdit 
                     {uploadingImage ? (
                       <Center flexDirection="column">
                         <Spinner size="md" color="blue.500" mb={2} />
-                        <Text fontSize="sm" color="fg.muted">Enviando para Digital Ocean...</Text>
+                        <Text fontSize="sm" color="fg.muted">Enviando para nuvem...</Text>
                       </Center>
                     ) : (
                       <>
-                        <LuImagePlus size={24} style={{ margin: '0 auto' }} />
+                        <LuImagePlus size={24} style={{ margin: '0 auto' }} color="gray" />
                         <Text fontSize="sm" mt={2} color="fg.muted">Clique para adicionar uma imagem</Text>
                       </>
                     )}
                   </Box>
                 ) : (
                   <Box position="relative" mt={2}>
-                    <Image src={imageUrl} alt="Preview" borderRadius="md" maxHeight="200px" objectFit="cover" w="full" />
+                    <Image 
+                      src={formData.imageUrl} 
+                      alt="Preview" 
+                      borderRadius="md" 
+                      maxHeight="200px" 
+                      objectFit="cover" 
+                      w="full" 
+                    />
                     <Button 
                       size="xs" 
                       position="absolute" 
                       top={2} 
                       right={2} 
                       colorPalette="red"
-                      onClick={() => setImageUrl('')}
+                      onClick={() => setFormData({...formData, imageUrl: ''})}
                     >
                       <LuX /> Remover
                     </Button>
                   </Box>
                 )}
               </Field.Root>
+
+              <Field.Root required>
+                <Field.Label>Nome da Sala</Field.Label>
+                <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+              </Field.Root>
+
+              <Field.Root required>
+                <Field.Label>Capacidade (Pessoas)</Field.Label>
+                <Input type="number" min={1} value={formData.capacity} onChange={e => setFormData({...formData, capacity: Number(e.target.value)})} />
+              </Field.Root>
+
+              <Field.Root>
+                <Field.Label>Descrição</Field.Label>
+                <Textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+              </Field.Root>
+
+              {/* Seção das Comodidades (Amenities) */}
+              <Field.Root>
+                <Field.Label mb={2}>O que este espaço oferece?</Field.Label>
+                <SimpleGrid columns={2} gap={2}>
+                  {AVAILABLE_AMENITIES.map((amenity) => {
+                    const isActive = formData.amenities?.includes(amenity.id);
+                    return (
+                      <Button
+                        key={amenity.id}
+                        variant={isActive ? 'solid' : 'outline'}
+                        colorPalette={isActive ? 'blue' : 'gray'}
+                        size="sm"
+                        justifyContent="flex-start"
+                        onClick={() => toggleAmenity(amenity.id)}
+                      >
+                        <Icon as={amenity.icon} mr={2} />
+                        {amenity.id}
+                      </Button>
+                    );
+                  })}
+                </SimpleGrid>
+              </Field.Root>
+
             </Stack>
           </Dialog.Body>
 
-          <Dialog.Footer>
+          <Dialog.Footer mt={4}>
             <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-            <Button 
-              colorPalette="blue" 
-              onClick={handleSubmit} 
-              loading={loading}
-              disabled={uploadingImage}
-            >
-              {roomToEdit ? 'Atualizar Sala' : 'Salvar Sala'}
+            <Button colorPalette="blue" onClick={handleSubmit} loading={loading}>
+              Salvar Sala
             </Button>
           </Dialog.Footer>
         </Dialog.Content>

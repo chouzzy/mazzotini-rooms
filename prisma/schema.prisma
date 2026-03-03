@@ -44,6 +44,7 @@ model Room {
   name        String
   capacity    Int
   imageUrl    String?
+  amenities   String[]  @default([]) // <-- ADICIONE ESTA LINHA
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())

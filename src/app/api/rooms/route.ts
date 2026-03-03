@@ -21,7 +21,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, capacity, description, imageUrl } = body;
+    // AGORA RECEBE AMENITIES DO FRONTEND
+    const { name, capacity, description, imageUrl, amenities } = body; 
 
     if (!name || !capacity) {
       return new Response(
@@ -35,13 +36,15 @@ export async function POST(request: Request) {
         name,
         capacity: Number(capacity),
         description,
+        imageUrl, 
+        amenities: amenities || [], // SALVANDO NO BANCO DE DADOS (garante array vazio se não vier)
         isActive: true,
-        imageUrl,
       },
     });
 
     return new Response(JSON.stringify(room), { status: 201 });
   } catch (error) {
+    console.error('Erro ao criar sala:', error);
     return new Response(JSON.stringify({ error: 'Erro ao criar sala' }), { status: 500 });
   }
 }
@@ -50,7 +53,8 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, name, capacity, description, isActive, imageUrl } = body;
+    // AGORA RECEBE AMENITIES NA ATUALIZAÇÃO
+    const { id, name, capacity, description, isActive, imageUrl, amenities } = body;
 
     if (!id) {
       return new Response(
@@ -59,7 +63,6 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Verifica se a sala existe
     const existingRoom = await prisma.room.findUnique({ where: { id } });
     if (!existingRoom) {
       return new Response(JSON.stringify({ error: 'Sala não encontrada' }), { status: 404 });
@@ -68,11 +71,12 @@ export async function PUT(request: Request) {
     const updatedRoom = await prisma.room.update({
       where: { id },
       data: {
-        name: name || undefined, // Só atualiza se vier valor
+        name: name || undefined,
         capacity: capacity ? Number(capacity) : undefined,
-        description: description || undefined,
+        description: description !== undefined ? description : undefined,
         isActive: isActive !== undefined ? isActive : undefined,
-        imageUrl: imageUrl || undefined,
+        imageUrl: imageUrl !== undefined ? imageUrl : undefined, 
+        amenities: amenities !== undefined ? amenities : undefined, // ATUALIZA O CAMPO DE AMENIDADES
       },
     });
 
@@ -94,7 +98,6 @@ export async function DELETE(request: Request) {
       return new Response(JSON.stringify({ error: 'ID é obrigatório' }), { status: 400 });
     }
 
-    // PROTEÇÃO: Verificar se existem agendamentos para esta sala
     const bookingsCount = await prisma.booking.count({
       where: { roomId: id }
     });

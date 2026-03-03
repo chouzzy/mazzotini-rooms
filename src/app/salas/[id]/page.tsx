@@ -25,9 +25,12 @@ import {
   LuMonitor, 
   LuCoffee, 
   LuArrowLeft, 
-  LuCalendarCheck 
+  LuCalendarCheck, 
+  LuPresentation,
+  LuVideo,
+  LuAccessibility,
+  LuCheck
 } from "react-icons/lu";
-import Navbar from '@/components/Navbar';
 import BookingModal from '@/components/BookingModal';
 
 interface Room {
@@ -37,6 +40,7 @@ interface Room {
   description: string;
   isActive: boolean;
   imageUrl?: string;
+  amenities?: string[];
 }
 
 export default function RoomDetailsPage() {
@@ -72,7 +76,6 @@ export default function RoomDetailsPage() {
   if (loading) {
     return (
       <Box minH="100vh" bg="bg.canvas">
-        <Navbar />
         <Center h="calc(100vh - 64px)">
           <Spinner size="xl" color="blue.500" />
         </Center>
@@ -83,7 +86,6 @@ export default function RoomDetailsPage() {
   if (!room) {
     return (
       <Box minH="100vh" bg="bg.canvas">
-        <Navbar />
         <Center h="calc(100vh - 64px)">
           <Stack align="center">
             <Heading>Sala não encontrada 😕</Heading>
@@ -94,9 +96,20 @@ export default function RoomDetailsPage() {
     );
   }
 
+  // Helper para renderizar o ícone correto baseado no nome da amenidade salva no BD
+  const getAmenityIcon = (amenityName: string) => {
+    const name = amenityName.toLowerCase();
+    if (name.includes('wi-fi') || name.includes('internet')) return LuWifi;
+    if (name.includes('tv') || name.includes('hdmi') || name.includes('monitor')) return LuMonitor;
+    if (name.includes('café') || name.includes('água')) return LuCoffee;
+    if (name.includes('quadro')) return LuPresentation;
+    if (name.includes('videoconferência') || name.includes('video')) return LuVideo;
+    if (name.includes('acessibilidade')) return LuAccessibility;
+    return LuCheck; // Ícone genérico caso não dê match com nenhum
+  };
+
   return (
     <Box minH="100vh" bg="bg.canvas">
-      <Navbar />
 
       {/* Hero Section / Imagem de Capa */}
       <Box w="full" h={{ base: "250px", md: "400px" }} bg="gray.100" position="relative">
@@ -158,22 +171,27 @@ export default function RoomDetailsPage() {
                 <Box>
                   <Heading size="md" mb={4}>O que este espaço oferece</Heading>
                   <Grid templateColumns={{ base: "1fr", sm: "1fr 1fr" }} gap={4}>
+                    
+                    {/* Capacidade sempre visível, pois é obrigatória no banco */}
                     <Flex gap={3} align="center">
                       <Icon as={LuUsers} fontSize="xl" color="blue.500" />
                       <Text>Capacidade para {room.capacity} pessoas</Text>
                     </Flex>
-                    <Flex gap={3} align="center">
-                      <Icon as={LuWifi} fontSize="xl" color="blue.500" />
-                      <Text>Wi-Fi de alta velocidade</Text>
-                    </Flex>
-                    <Flex gap={3} align="center">
-                      <Icon as={LuMonitor} fontSize="xl" color="blue.500" />
-                      <Text>TV / Projetor HDMI</Text>
-                    </Flex>
-                    <Flex gap={3} align="center">
-                      <Icon as={LuCoffee} fontSize="xl" color="blue.500" />
-                      <Text>Água e Café próximos</Text>
-                    </Flex>
+
+                    {/* DEMAIS AMENIDADES GERADAS DINAMICAMENTE */}
+                    {room.amenities && room.amenities.length > 0 ? (
+                      room.amenities.map((amenity, index) => (
+                        <Flex key={index} gap={3} align="center">
+                          <Icon as={getAmenityIcon(amenity)} fontSize="xl" color="blue.500" />
+                          <Text>{amenity}</Text>
+                        </Flex>
+                      ))
+                    ) : (
+                       <Text color="fg.muted" fontStyle="italic" fontSize="sm">
+                         Nenhuma outra comodidade cadastrada.
+                       </Text>
+                    )}
+
                   </Grid>
                 </Box>
               </Stack>
