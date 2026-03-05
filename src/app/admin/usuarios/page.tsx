@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react';
 import { 
   Box, Container, Heading, Table, Badge, Button, Flex, 
-  Spinner, Center, Stack, Text, Avatar,
-  Dialog, Input, Field
+  Spinner, Center, Stack, Text, Avatar, Dialog, Input, Field
 } from '@chakra-ui/react';
-import { LuShield, LuUser, LuRefreshCw, LuMailPlus, LuChevronLeft, LuChevronRight, LuSearch } from "react-icons/lu";
+import { LuShield, LuUser, LuRefreshCw, LuMailPlus, LuChevronLeft, LuChevronRight, LuSearch, LuStar } from "react-icons/lu";
 import { toaster } from '@/components/ui/toaster';
 
 interface User {
@@ -15,6 +14,7 @@ interface User {
   email: string | null;
   image: string | null;
   role: 'USER' | 'ADMIN';
+  isVip: boolean;
 }
 
 export default function AdminUsersPage() {
@@ -22,26 +22,21 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // Estados de Paginação
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
-
-  // Estados de Busca
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  // Estados do Modal de Convite
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviting, setInviting] = useState(false);
 
-  // Efeito de Debounce para a busca (Espera 500ms o usuário parar de digitar)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-      setCurrentPage(1); // Sempre retorna à página 1 ao fazer uma nova pesquisa
+      setCurrentPage(1);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
@@ -51,37 +46,30 @@ export default function AdminUsersPage() {
     try {
       const res = await fetch(`/api/users?page=${page}&limit=10&search=${encodeURIComponent(search)}`);
       if (!res.ok) throw new Error('Falha ao carregar utilizadores');
-      
       const data = await res.json();
-      
-      // O backend agora devolve um objeto com paginação
       setUsers(data.users);
       setTotalPages(data.totalPages);
       setTotalUsers(data.total);
     } catch (error) {
-      toaster.create({ title: 'Erro ao carregar lista de usuários', type: 'error' });
+      toaster.create({ title: 'Erro ao carregar lista', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchUsers(currentPage, debouncedSearch);
-  }, [currentPage, debouncedSearch]);
+  useEffect(() => { fetchUsers(currentPage, debouncedSearch); }, [currentPage, debouncedSearch]);
 
-  const handleRoleChange = async (id: string, newRole: 'USER' | 'ADMIN') => {
+  const handleUpdateUser = async (id: string, payload: any) => {
     setProcessingId(id);
     try {
       const res = await fetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, role: newRole }),
+        body: JSON.stringify({ id, ...payload }),
       });
-
       if (!res.ok) throw new Error('Falha na atualização');
-
-      toaster.create({ title: 'Sucesso', description: `Cargo atualizado para ${newRole}.`, type: 'success' });
-      setUsers(prev => prev.map(u => u.id === id ? { ...u, role: newRole } : u));
+      toaster.create({ title: 'Sucesso', description: `Usuário atualizado.`, type: 'success' });
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, ...payload } : u));
     } catch (error) {
       toaster.create({ title: 'Erro ao processar', type: 'error' });
     } finally {
@@ -90,11 +78,7 @@ export default function AdminUsersPage() {
   };
 
   const handleInvite = async () => {
-    if (!inviteEmail || !inviteName) {
-      toaster.create({ title: 'Campos obrigatórios', description: 'Preencha o nome e o e-mail.', type: 'warning' });
-      return;
-    }
-
+    if (!inviteEmail || !inviteName) return toaster.create({ title: 'Campos obrigatórios', type: 'warning' });
     setInviting(true);
     try {
       const res = await fetch('/api/users/invite', {
@@ -102,28 +86,10 @@ export default function AdminUsersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: inviteEmail, name: inviteName }),
       });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Erro ao convidar');
-      }
-
-      toaster.create({
-        title: 'Convite Enviado!',
-        description: `O associado receberá as instruções em ${inviteEmail}`,
-        type: 'success',
-      });
-      
-      setIsInviteOpen(false);
-      setInviteEmail('');
-      setInviteName('');
-      
-      // Volta para a primeira página para ver o novo usuário
-      if (currentPage !== 1) {
-        setCurrentPage(1);
-      } else {
-        fetchUsers(1, debouncedSearch); 
-      }
+      if (!res.ok) throw new Error('Erro ao convidar');
+      toaster.create({ title: 'Convite Enviado!', type: 'success' });
+      setIsInviteOpen(false); setInviteEmail(''); setInviteName('');
+      fetchUsers(1, debouncedSearch); 
     } catch (error: any) {
       toaster.create({ title: 'Erro', description: error.message, type: 'error' });
     } finally {
@@ -133,71 +99,44 @@ export default function AdminUsersPage() {
 
   return (
     <Box minH="100vh" bg="bg.canvas">
-      <Container maxW="6xl" py={8}>
-        
-        {/* RESPONSIVIDADE DO CABEÇALHO: Empilha no mobile, lado a lado no PC */}
-        <Flex 
-          justify="space-between" 
-          align={{ base: 'start', md: 'center' }} 
-          mb={6} 
-          flexDir={{ base: 'column', md: 'row' }} 
-          gap={4}
-        >
-          <Heading size={{ base: 'md', md: 'lg' }} whiteSpace="nowrap">Gestão de Usuários</Heading>
-          
-          {/* Barra de Busca Dinâmica - Ocupa 100% no mobile */}
+      <Container py={8}>
+        <Flex justify="space-between" align={{ base: 'start', md: 'center' }} mb={6} flexDir={{ base: 'column', md: 'row' }} gap={4}>
+          <Heading size={{ base: 'md', md: 'lg' }} color="fg.DEFAULT">Gestão de Usuários</Heading>
           <Box position="relative" w="full" maxW={{ base: 'full', md: '400px' }}>
-            <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" color="fg.muted" zIndex={1}>
-              <LuSearch />
-            </Box>
+            <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" color="fg.muted" zIndex={1}><LuSearch /></Box>
             <Input 
               pl={10} 
-              size="sm"
+              size="sm" 
               placeholder="Buscar por nome ou e-mail..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              bg="white"
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)} 
+              bg="bg.canvas"
+              borderColor="border.muted"
+              color="fg.DEFAULT"
             />
           </Box>
-
           <Stack direction="row" gap={2} w={{ base: 'full', md: 'auto' }}>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => fetchUsers(currentPage, debouncedSearch)} 
-              disabled={loading}
-              flex={{ base: 1, md: 'auto' }}
-            >
+            <Button variant="solid" size="sm" onClick={() => fetchUsers(currentPage, debouncedSearch)} disabled={loading} color="fg.DEFAULT" borderColor="border.muted">
               <LuRefreshCw /> Atualizar
             </Button>
-            <Button 
-              colorPalette="blue" 
-              size="sm" 
-              onClick={() => setIsInviteOpen(true)}
-              flex={{ base: 1, md: 'auto' }}
-            >
+            <Button colorPalette="blue" size="sm" onClick={() => setIsInviteOpen(true)}>
               <LuMailPlus /> Convidar
             </Button>
           </Stack>
         </Flex>
 
         {loading ? (
-          <Center py={20}><Spinner size="xl" color="blue.500" /></Center>
+          <Center py={20}><Spinner size="xl" color="brand.500" /></Center>
         ) : (
-          <Box borderWidth="1px" borderRadius="lg" bg="white" overflowX="auto" p={{ base: 2, md: 4 }}>
-            
-            <Text fontSize="xs" color="fg.muted" mb={4} px={2}>
-              Total de usuários cadastrados: <strong>{totalUsers}</strong>
-            </Text>
-
-            {/* TABELA: Reduzimos a fonte (size="sm") e adicionamos nowrap */}
-            <Table.Root size="sm" variant="line">
+          <Flex flexDir={'column'} w='100%'  borderRadius="lg" overflowX="auto" p={{ base: 2, md: 4 }}>
+            <Text fontSize="xs" color="fg.muted" mb={4} px={2}>Total de usuários: <strong style={{ color: 'var(--chakra-colors-fg-DEFAULT)' }}>{totalUsers}</strong></Text>
+            <Table.Root size="sm" variant="outline">
               <Table.Header>
                 <Table.Row>
-                  <Table.ColumnHeader whiteSpace="nowrap">Usuário</Table.ColumnHeader>
-                  <Table.ColumnHeader whiteSpace="nowrap">E-mail</Table.ColumnHeader>
-                  <Table.ColumnHeader whiteSpace="nowrap">Cargo</Table.ColumnHeader>
-                  <Table.ColumnHeader whiteSpace="nowrap" textAlign="right">Ações</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap" color="fg.muted">Usuário</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap" color="fg.muted">E-mail</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap" color="fg.muted">Status</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap" textAlign="right" color="fg.muted">Ações</Table.ColumnHeader>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
@@ -205,139 +144,98 @@ export default function AdminUsersPage() {
                   <Table.Row key={user.id}>
                     <Table.Cell whiteSpace="nowrap">
                       <Flex align="center" gap={3}>
-                        <Avatar.Root size="xs">
-                          <Avatar.Fallback name={user.name || 'User'} />
+                        <Avatar.Root size="xs" bgColor={user.isVip ? 'yellow.600' : user.role === 'ADMIN' ? 'purple.600' : 'gray.600'}>
+                          <Avatar.Fallback name={user.name || 'User'} color="brand.50" />
                           <Avatar.Image src={user.image || undefined} />
                         </Avatar.Root>
-                        <Text fontWeight="medium" fontSize="sm">{user.name || 'Sem nome'}</Text>
+                        <Text fontWeight="medium" fontSize="sm" color="fg.DEFAULT">{user.name || 'Sem nome'}</Text>
                       </Flex>
                     </Table.Cell>
-                    <Table.Cell whiteSpace="nowrap" color="fg.muted" fontSize="sm">
-                      {user.email}
-                    </Table.Cell>
+                    <Table.Cell whiteSpace="nowrap" color="fg.muted" fontSize="sm">{user.email}</Table.Cell>
                     <Table.Cell whiteSpace="nowrap">
-                      <Badge size="sm" colorPalette={user.role === 'ADMIN' ? 'purple' : 'gray'}>
-                        {user.role}
-                      </Badge>
+                      <Flex gap={2}>
+                        <Badge size="sm" colorPalette={user.role === 'ADMIN' ? 'purple' : 'cyan'} variant="solid">{user.role}</Badge>
+                        {user.isVip && <Badge size="sm" colorPalette="yellow" variant="solid"><LuStar style={{ marginRight: '2px' }}/> VIP</Badge>}
+                      </Flex>
                     </Table.Cell>
                     <Table.Cell whiteSpace="nowrap" textAlign="right">
-                      {user.role === 'USER' ? (
+                      <Stack direction="row" gap={2} justify="flex-end">
                         <Button 
-                          size="xs" colorPalette="purple" variant="outline"
-                          onClick={() => handleRoleChange(user.id, 'ADMIN')}
+                          size="xs" colorPalette={user.isVip ? "orange" : "yellow"} variant="solid"
+                          onClick={() => handleUpdateUser(user.id, { isVip: !user.isVip })}
                           loading={processingId === user.id}
                         >
-                          <LuShield /> Promover a Admin
+                          <LuStar /> {user.isVip ? 'Remover VIP' : 'Tornar VIP'}
                         </Button>
-                      ) : (
                         <Button 
-                          size="xs" colorPalette="gray" variant="outline"
-                          onClick={() => handleRoleChange(user.id, 'USER')}
+                          size="xs" colorPalette={user.role === 'ADMIN' ? "cyan" : "purple"} variant="solid"
+                          onClick={() => handleUpdateUser(user.id, { role: user.role === 'ADMIN' ? 'USER' : 'ADMIN' })}
                           loading={processingId === user.id}
+                          minW={40}
                         >
-                          <LuUser /> Remover Admin
+                          {user.role === 'ADMIN' ? <LuUser /> : <LuShield />}
+                          {user.role === 'ADMIN' ? 'Remover Admin' : 'Promover Admin'}
                         </Button>
-                      )}
+                      </Stack>
                     </Table.Cell>
                   </Table.Row>
                 ))}
-                {users.length === 0 && !loading && (
-                  <Table.Row>
-                    <Table.Cell colSpan={4} textAlign="center" py={8} color="fg.muted">
-                      Nenhum usuário encontrado na busca.
-                    </Table.Cell>
-                  </Table.Row>
-                )}
               </Table.Body>
             </Table.Root>
 
-            {/* Controles de Paginação: Flexíveis no mobile */}
             {totalPages > 1 && (
-              <Flex 
-                justify="space-between" 
-                align="center" 
-                mt={6} 
-                pt={4} 
-                borderTopWidth="1px"
-                flexWrap="wrap"
-                gap={3}
-              >
-                <Button 
-                  size="xs" 
-                  variant="outline" 
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1 || loading}
-                >
-                  <LuChevronLeft /> Anterior
-                </Button>
-                
-                <Text fontSize="xs" fontWeight="medium">
-                  Página {currentPage} de {totalPages}
-                </Text>
-
-                <Button 
-                  size="xs" 
-                  variant="outline" 
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages || loading}
-                >
-                  Próxima <LuChevronRight />
-                </Button>
+              <Flex justify="space-between" align="center" mt={6} pt={4} borderTopWidth="1px" borderColor="border.muted" flexWrap="wrap" gap={3}>
+                <Button size="xs" variant="outline" color="fg.DEFAULT" borderColor="border.muted" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><LuChevronLeft /> Anterior</Button>
+                <Text fontSize="xs" fontWeight="medium" color="fg.muted">Página {currentPage} de {totalPages}</Text>
+                <Button size="xs" variant="outline" color="fg.DEFAULT" borderColor="border.muted" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Próxima <LuChevronRight /></Button>
               </Flex>
             )}
-
-          </Box>
+          </Flex>
         )}
 
-        {/* Modal de Convite de Associado */}
+        {/* MODAL DE CONVITE DARK MODE */}
         <Dialog.Root open={isInviteOpen} onOpenChange={(e) => !e.open && setIsInviteOpen(false)}>
-          <Dialog.Backdrop />
+          <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
           <Dialog.Positioner>
-            <Dialog.Content mx={4}>
+            <Dialog.Content mx={4} bg="bg.panel" borderRadius="xl" shadow="2xl">
               <Dialog.Header>
-                <Dialog.Title>Convidar Associado Externo</Dialog.Title>
+                <Dialog.Title color="fg.DEFAULT">Convidar Associado</Dialog.Title>
               </Dialog.Header>
               <Dialog.CloseTrigger />
-              
-              <Dialog.Body>
+              <Dialog.Body pb={4}>
                 <Stack gap={4}>
-                  <Text fontSize="sm" color="fg.muted" mb={2}>
-                    O associado receberá um e-mail oficial da Microsoft com um link seguro para aceitar o convite e acessar o sistema utilizando seu e-mail pessoal.
-                  </Text>
-                  
                   <Field.Root required>
-                    <Field.Label fontSize="sm">Nome Completo</Field.Label>
+                    <Field.Label color="fg.DEFAULT">Nome Completo</Field.Label>
                     <Input 
-                      size="sm"
-                      placeholder="Ex: João Associado" 
+                      size="sm" 
                       value={inviteName} 
                       onChange={(e) => setInviteName(e.target.value)} 
+                      bg="bg.canvas"
+                      borderColor="border.muted"
+                      color="fg.DEFAULT"
                     />
                   </Field.Root>
-
                   <Field.Root required>
-                    <Field.Label fontSize="sm">E-mail Pessoal (Gmail, Hotmail, etc.)</Field.Label>
+                    <Field.Label color="fg.DEFAULT">E-mail</Field.Label>
                     <Input 
-                      size="sm"
+                      size="sm" 
                       type="email" 
-                      placeholder="Ex: joao@gmail.com" 
                       value={inviteEmail} 
                       onChange={(e) => setInviteEmail(e.target.value)} 
+                      bg="bg.canvas"
+                      borderColor="border.muted"
+                      color="fg.DEFAULT"
                     />
                   </Field.Root>
                 </Stack>
               </Dialog.Body>
-
-              <Dialog.Footer mt={4}>
-                <Button variant="ghost" size="sm" onClick={() => setIsInviteOpen(false)}>Cancelar</Button>
-                <Button colorPalette="blue" size="sm" onClick={handleInvite} loading={inviting}>
-                  Enviar Convite
-                </Button>
+              <Dialog.Footer mt={2} bg="whiteAlpha.50" borderTopWidth="1px" borderColor="border.muted" borderBottomRadius="xl">
+                <Button variant="ghost" size="sm" color="fg.muted" onClick={() => setIsInviteOpen(false)}>Cancelar</Button>
+                <Button colorPalette="blue" size="sm" onClick={handleInvite} loading={inviting}>Enviar Convite</Button>
               </Dialog.Footer>
             </Dialog.Content>
           </Dialog.Positioner>
         </Dialog.Root>
-
       </Container>
     </Box>
   );

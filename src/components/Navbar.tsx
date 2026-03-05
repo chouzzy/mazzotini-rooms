@@ -22,17 +22,17 @@ export default function Navbar() {
   const PublicLinks = () => (
     <>
       <Link href="/salas" onClick={closeMenu}>
-        <Button _hover={{ bgColor: '#436fff33' }} variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} fontWeight="normal">
+        <Button _hover={{ bgColor: 'gray.700' }} variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} fontWeight="normal">
           <LuDoorOpen /> Salas
         </Button>
       </Link>
       <Link href="/calendario" onClick={closeMenu}>
-        <Button _hover={{ bgColor: '#436fff33' }} variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} fontWeight="normal">
+        <Button _hover={{ bgColor: 'gray.700' }} variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} fontWeight="normal">
           <LuCalendarClock /> Calendário
         </Button>
       </Link>
       <Link href="/minhas-reservas" onClick={closeMenu}>
-        <Button _hover={{ bgColor: '#436fff33' }} variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} fontWeight="normal">
+        <Button _hover={{ bgColor: 'gray.700' }} variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} fontWeight="normal">
           <LuCalendarDays /> Minhas Reservas
         </Button>
       </Link>
@@ -43,17 +43,17 @@ export default function Navbar() {
   const AdminLinks = () => (
     <>
       <Link href="/admin/dashboard" onClick={closeMenu}>
-        <Button variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} colorPalette="purple">
+        <Button variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} color={'brand.500'} _hover={{ bgColor: 'brand.800', color:'brand.100' }}>
           <LuShieldCheck /> Aprovações
         </Button>
       </Link>
       <Link href="/admin/salas" onClick={closeMenu}>
-        <Button variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} colorPalette="purple">
+        <Button variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} color={'brand.500'} _hover={{ bgColor: 'brand.800', color:'brand.100' }}>
           <LuLayoutDashboard /> Gerir Salas
         </Button>
       </Link>
       <Link href="/admin/usuarios" onClick={closeMenu}>
-        <Button variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} colorPalette="purple">
+        <Button variant="ghost" size="md" h={{ base: 12, lg: 16 }} w="full" justifyContent={{ base: "flex-start", lg: "center" }} color={'brand.500'} _hover={{ bgColor: 'brand.800', color:'brand.100' }}  >
           <LuUsers /> Usuários
         </Button>
       </Link>
@@ -61,7 +61,7 @@ export default function Navbar() {
   );
 
   return (
-    <Box borderBottomWidth="1px" bg="bg.panel" position="sticky" top={0} zIndex={50} w="100%">
+    <Box borderBottomWidth="1px" borderColor={'#6A623266'} bg="bg.panel" position="sticky" top={0} zIndex={50} w="100%">
       <Flex alignItems="center" justifyContent="space-between" w="100%" px={{ base: 4, md: 8 }}>
         
         {/* Logo / Título */}
@@ -101,7 +101,7 @@ export default function Navbar() {
                     {session.user.name}
                   </Text>
                   {isAdmin && (
-                    <Box px={1.5} py={0.5} bg="purple.100" color="purple.700" fontSize="2xs" fontWeight="bold" borderRadius="sm">
+                    <Box px={1.5} py={0.5} bg="brand.700" color="brand.100" fontSize="2xs" fontWeight="bold" borderRadius="sm">
                       ADMIN
                     </Box>
                   )}
@@ -112,7 +112,7 @@ export default function Navbar() {
                 </Text>
               </Box>
 
-              <Avatar.Root bgColor="blue.200" size="sm" mr={{ base: 0, lg: 8 }}>
+              <Avatar.Root bgColor="brand.700" size="sm" mr={{ base: 0, lg: 8 }}>
                 <Avatar.Fallback name={session.user.name || 'User'} />
                 <Avatar.Image src={session.user.image || undefined} />
               </Avatar.Root>
@@ -163,7 +163,7 @@ export default function Navbar() {
             {isAdmin && (
               <>
                 <Box h="1px" w="full" bg="border.muted" my={2} />
-                <Text fontSize="xs" fontWeight="bold" color="purple.600" textTransform="uppercase" ml={4}>
+                <Text fontSize="xs" fontWeight="bold" color="brand.600" textTransform="uppercase" ml={4}>
                   Administração
                 </Text>
                 <AdminLinks />

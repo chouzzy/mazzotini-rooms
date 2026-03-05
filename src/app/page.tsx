@@ -14,6 +14,7 @@ export default function Home() {
       w="100%"
       maxW="8xl"
       mx="auto"
+      color='fg.DEFAULT'
     >
       <Welcome />
       <RoomCarousel />

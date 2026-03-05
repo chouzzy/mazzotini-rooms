@@ -2,119 +2,73 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createOnlineMeeting } from '@/lib/microsoftGraph';
-import { sendApprovalEmail, sendRejectionEmail, sendCancellationEmail } from '@/lib/email';
+import { sendApprovalEmail, sendRejectionEmail, sendCancellationEmail, sendPendingEmail, sendGuestInvitationEmail } from '@/lib/email';
+import { BookingStatus, MeetingType } from '@prisma/client';
 
-// Criamos o status localmente para evitar bugs de cache/importação do Prisma no Next.js
-const BookingStatus = {
-  PENDING: 'PENDING',
-  CONFIRMED: 'CONFIRMED',
-  REJECTED: 'REJECTED',
-  CANCELLED: 'CANCELLED'
-} as const;
 
-// ----------------------------------------------------------------------
-// GET - LISTAR RESERVAS
-// ----------------------------------------------------------------------
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const roomId = searchParams.get('roomId');
-    const email = searchParams.get('email');
-    const all = searchParams.get('all');
-
-    const session = await getServerSession(authOptions);
-    if (!session && !all) return new Response('Não autorizado', { status: 401 });
-
-    const where: any = {};
-    if (roomId) where.roomId = roomId;
-    
-    if (email) {
-      where.user = { email };
-    } else if (!all && session?.user?.role !== 'ADMIN') {
-      where.userId = session?.user?.id;
-    }
-
-    const bookings = await prisma.booking.findMany({
-      where,
-      include: {
-        room: true,
-        user: true,
-      },
-      orderBy: { startTime: 'asc' },
-    });
-
-    return new Response(JSON.stringify(bookings), { status: 200 });
-  } catch (error: any) {
-    console.error('❌ ERRO DETALHADO NO GET /api/bookings:', error.message);
-
-    if (error.message?.includes('Inconsistent query result')) {
-      console.log('🛠️ Iniciando Auto-Heal: Limpando agendamentos órfãos...');
-      
-      try {
-        const rawBookings = await prisma.booking.findMany();
-        const rooms = await prisma.room.findMany({ select: { id: true } });
-        const users = await prisma.user.findMany({ select: { id: true } });
-        
-        const validRoomIds = new Set(rooms.map(r => r.id));
-        const validUserIds = new Set(users.map(u => u.id));
-        
-        const orphanedIds = rawBookings
-          .filter(b => !validRoomIds.has(b.roomId) || !validUserIds.has(b.userId))
-          .map(b => b.id);
-          
-        if (orphanedIds.length > 0) {
-          await prisma.booking.deleteMany({ where: { id: { in: orphanedIds } } });
-          console.log(`✅ Auto-Heal concluído: ${orphanedIds.length} agendamentos órfãos removidos.`);
-          
-          const healedBookings = await prisma.booking.findMany({
-            include: { room: true, user: true },
-            orderBy: { startTime: 'asc' },
-          });
-          
-          return new Response(JSON.stringify(healedBookings), { status: 200 });
-        }
-      } catch (healError) {
-        console.error('❌ Erro durante o Auto-Heal:', healError);
-      }
-    }
-
-    return new Response(JSON.stringify({ error: 'Erro interno' }), { status: 500 });
-  }
-}
-
-// ----------------------------------------------------------------------
-// POST - CRIAR RESERVA (PERMITE CONCORRÊNCIA SE ESTIVER PENDENTE)
-// ----------------------------------------------------------------------
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return new Response('Não autorizado', { status: 401 });
-
     const body = await request.json();
-    const { roomId, title, startTime, endTime } = body;
-    const userId = session.user.id;
+    const { roomId, userId, title, startTime, endTime, isOnline, guests } = body;
+
+    if (!roomId || !userId || !title || !startTime || !endTime) {
+      return new Response(JSON.stringify({ error: 'Todos os campos são obrigatórios' }), { status: 400 });
+    }
 
     const start = new Date(startTime);
     const end = new Date(endTime);
 
+    // 1. Busca os dados do Usuário (Para saber se é VIP) e da Sala (para capacidade)
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const currentRoom = await prisma.room.findUnique({ where: { id: roomId } });
+    const isVip = user?.isVip || false;
+
+    // 2. Validação de Conflito de Horário (Agora bloqueia PENDING e CONFIRMED)
     const conflictingBooking = await prisma.booking.findFirst({
       where: {
         roomId,
-        status: BookingStatus.CONFIRMED,
-        startTime: { lt: end }, 
-        endTime: { gt: start }  
-      },
+        status: { in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
+        AND: [
+          { startTime: { lt: end } },
+          { endTime: { gt: start } }
+        ]
+      }
     });
 
     if (conflictingBooking) {
-      return new Response(JSON.stringify({ 
-        error: 'Esta sala já possui uma reserva APROVADA para este horário.' 
-      }), { status: 409 });
+      // 3. REGRA VIP: Se for VIP, fura a fila e cria como Pendente na mesma.
+      if (!isVip) {
+        // 4. REGRA DE OTIMIZAÇÃO: Procura uma sala livre com capacidade igual ou maior
+        const suggestedRoom = await prisma.room.findFirst({
+          where: {
+            isActive: true,
+            id: { not: roomId },
+            capacity: { gte: currentRoom?.capacity || 1 },
+            bookings: {
+              none: {
+                status: { in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
+                AND: [
+                  { startTime: { lt: end } },
+                  { endTime: { gt: start } }
+                ]
+              }
+            }
+          },
+          select: { id: true, name: true, capacity: true }
+        });
+
+        if (suggestedRoom) {
+          return new Response(JSON.stringify({
+            error: 'Sala Ocupada',
+            suggestion: suggestedRoom
+          }), { status: 409 });
+        }
+
+        return new Response(JSON.stringify({ error: 'A sala já está ocupada neste horário e não há alternativas compatíveis.' }), { status: 409 });
+      }
     }
 
-    // REMOVIDO: Não criamos mais o link do Teams aqui. 
-    // O agendamento está pendente e não faz sentido bloquear agenda ainda.
-    
+    // Cria a reserva (VIPs caem aqui mesmo com conflito)
     const booking = await prisma.booking.create({
       data: {
         roomId,
@@ -122,197 +76,231 @@ export async function POST(request: Request) {
         title,
         startTime: start,
         endTime: end,
-        onlineMeetingUrl: null, // O link será gerado apenas na aprovação
-        status: BookingStatus.PENDING
-      }
+        type: isOnline ? MeetingType.ONLINE : MeetingType.IN_PERSON,
+        status: BookingStatus.PENDING,
+        guests: guests && guests.length > 0 ? JSON.stringify(guests) : null,
+      },
+      include: { user: true, room: true }
     });
+
+    if (booking.user.email) {
+      await sendPendingEmail(booking.user.email, booking.title, booking.room.name, booking.startTime, booking.endTime);
+    }
 
     return new Response(JSON.stringify(booking), { status: 201 });
   } catch (error) {
-    console.error('❌ ERRO DETALHADO NO POST /api/bookings:', error);
-    return new Response('Erro interno', { status: 500 });
+    console.error('Erro detalhado no POST /api/bookings:', error);
+    return new Response(JSON.stringify({ error: 'Erro ao criar agendamento' }), { status: 500 });
   }
 }
 
-// ----------------------------------------------------------------------
-// PUT - APROVAR/REJEITAR RESERVA E LIMPAR CONCORRENTES
-// ----------------------------------------------------------------------
+// O resto do arquivo PUT, GET e DELETE mantém-se IGUAL à versão anterior...
+// Para encurtar e não cortar a resposta, por favor, mantenha o código do PUT, GET e DELETE 
+// que já estava no seu ficheiro api/bookings/route.ts original (que eu refiz na mensagem anterior).
+
+// INCLUA SEU PUT, GET E DELETE AQUI!
+
 export async function PUT(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || session.user.role !== 'ADMIN') {
-      return new Response('Não autorizado', { status: 401 });
+      return new Response(JSON.stringify({ error: 'Não autorizado' }), { status: 401 });
     }
 
     const body = await request.json();
-    const { id, status } = body;
+    const { id, status, roomId, startTime, endTime } = body;
 
-    if (!id || !Object.values(BookingStatus).includes(status)) {
-      return new Response(
-        JSON.stringify({ error: 'ID e Status válido são obrigatórios' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+    if (!id) {
+      return new Response(JSON.stringify({ error: 'ID é obrigatório' }), { status: 400 });
     }
 
-    const booking = await prisma.booking.findUnique({
+    const existing = await prisma.booking.findUnique({
       where: { id },
       include: { user: true, room: true }
     });
 
-    if (!booking) {
-      return new Response(JSON.stringify({ error: 'Agendamento não encontrado' }), { status: 404 });
+    if (!existing) {
+      return new Response(JSON.stringify({ error: 'Reserva não encontrada' }), { status: 404 });
     }
 
-    if (status === BookingStatus.CONFIRMED) {
-      const conflictingBooking = await prisma.booking.findFirst({
+    // Se estiver atualizando horários ou sala (Remanejamento)
+    const newRoomId = roomId || existing.roomId;
+    const newStartTime = startTime ? new Date(startTime) : existing.startTime;
+    const newEndTime = endTime ? new Date(endTime) : existing.endTime;
+    const newStatus = status as BookingStatus || existing.status;
+
+    // Se estiver confirmando ou remanejando uma sala confirmada, verifica conflitos
+    if (newStatus === BookingStatus.CONFIRMED) {
+      const conflict = await prisma.booking.findFirst({
         where: {
-          roomId: booking.roomId,
+          roomId: newRoomId,
           status: BookingStatus.CONFIRMED,
-          id: { not: booking.id }, 
-          startTime: { lt: booking.endTime },
-          endTime: { gt: booking.startTime }
-        },
+          id: { not: id }, // Exclui a própria reserva
+          AND: [
+            { startTime: { lt: newEndTime } },
+            { endTime: { gt: newStartTime } }
+          ]
+        }
       });
 
-      if (conflictingBooking) {
-        return new Response(JSON.stringify({ 
-          error: 'Impossível aprovar: Outra reserva já foi confirmada para esta sala neste horário.' 
-        }), { status: 409 });
+      if (conflict) {
+        return new Response(JSON.stringify({ error: 'Impossível aprovar ou remanejar. Já existe uma reserva confirmada neste horário.' }), { status: 409 });
       }
     }
 
-    let meetingLink = booking.onlineMeetingUrl;
+    let onlineMeetingUrl = existing.onlineMeetingUrl;
 
-    // NOVO: Se foi aprovado e não tem link, criamos a reunião no Teams AGORA
-    if (status === BookingStatus.CONFIRMED && !meetingLink && process.env.AZURE_AD_CLIENT_ID) {
+    // Se aprovada e for tipo ONLINE, gera o link no Teams
+    if (newStatus === BookingStatus.CONFIRMED && existing.type === MeetingType.ONLINE && !onlineMeetingUrl) {
       try {
-        const meeting = await createOnlineMeeting(
-          booking.title, 
-          booking.startTime, 
-          booking.endTime,
-          booking.user.email // Passamos o email do usuário para convidá-lo para a reunião
-        );
-        meetingLink = meeting.joinWebUrl;
-      } catch (e) {
-        console.error("Erro ao criar Teams na aprovação:", e);
+        const meeting = await createOnlineMeeting(existing.title, newStartTime, newEndTime, existing.user.email);
+        onlineMeetingUrl = meeting.joinWebUrl;
+      } catch (error) {
+        console.error("Erro ao gerar link do Teams (Aviso ignorado na aprovação):", error);
       }
     }
 
-    // Atualizamos a reserva com o novo status e o link do Teams
-    const updatedBooking = await prisma.booking.update({
+    // Atualiza a Reserva
+    const updated = await prisma.booking.update({
       where: { id },
-      data: { 
-        status: status as any,
-        onlineMeetingUrl: meetingLink 
-      }
+      data: {
+        status: newStatus,
+        roomId: newRoomId,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        onlineMeetingUrl
+      },
+      include: { user: true, room: true }
     });
 
-    if (booking.user.email) {
-      if (status === BookingStatus.CONFIRMED) {
+    // Envio de E-mails
+    if (existing.user.email) {
+      // CENÁRIO 1: Aprovação de uma sala que estava pendente
+      if (newStatus === BookingStatus.CONFIRMED && existing.status === BookingStatus.PENDING) {
+        // 1.1 Envia para o solicitante
         await sendApprovalEmail(
-          booking.user.email, 
-          booking.title, 
-          booking.room.name,
-          booking.startTime,
-          booking.endTime,
-          meetingLink
+          existing.user.email, updated.title, updated.room.name,
+          updated.startTime, updated.endTime, updated.onlineMeetingUrl
         );
-      } else if (status === BookingStatus.REJECTED) {
-        await sendRejectionEmail(
-          booking.user.email, 
-          booking.title, 
-          booking.room.name,
-          booking.startTime,
-          booking.endTime
-        );
-      }
-    }
 
-    // Cancelar Concorrentes se Aprovado
-    if (status === BookingStatus.CONFIRMED) {
-      const start = booking.startTime;
-      const end = booking.endTime;
+        // 1.2 NOTIFICA OS CONVIDADOS EXTERNOS
+        if (updated.guests) {
+          try {
+            const guestList = JSON.parse(updated.guests);
+            const hostName = updated.user.name || updated.user.email || 'Membro da Equipe';
 
-      const conflictingPendings = await prisma.booking.findMany({
-        where: {
-          id: { not: booking.id }, 
-          roomId: booking.roomId,
-          status: BookingStatus.PENDING,
-          startTime: { lt: end }, 
-          endTime: { gt: start }
-        },
-        include: { user: true, room: true } 
-      });
+            for (const guest of guestList) {
+              if (guest.email) {
+                await sendGuestInvitationEmail(
+                  guest.email,
+                  guest.name || 'Convidado(a)',
+                  updated.title,
+                  updated.room.name,
+                  updated.startTime,
+                  updated.endTime,
+                  updated.onlineMeetingUrl,
+                  hostName
+                );
+              }
+            }
+          } catch (e) {
+            console.error("Erro ao notificar convidados externos:", e);
+          }
+        }
 
-      if (conflictingPendings.length > 0) {
-        const conflictingIds = conflictingPendings.map(b => b.id);
-        
-        await prisma.booking.updateMany({
-          where: { id: { in: conflictingIds } },
-          data: { status: BookingStatus.REJECTED as any }
+        // 1.3 Se confirmou essa, deve rejeitar automaticamente as concorrentes PENDENTES
+        const pendingConflicts = await prisma.booking.findMany({
+          where: {
+            roomId: updated.roomId,
+            status: BookingStatus.PENDING,
+            id: { not: updated.id },
+            AND: [
+              { startTime: { lt: updated.endTime } },
+              { endTime: { gt: updated.startTime } }
+            ]
+          },
+          include: { user: true }
         });
 
-        for (const competitor of conflictingPendings) {
-          if (competitor.user.email) {
+        for (const conflict of pendingConflicts) {
+          await prisma.booking.update({
+            where: { id: conflict.id },
+            data: { status: BookingStatus.REJECTED }
+          });
+          if (conflict.user.email) {
             await sendRejectionEmail(
-              competitor.user.email, 
-              competitor.title,
-              competitor.room.name,
-              competitor.startTime,
-              competitor.endTime
+              conflict.user.email, conflict.title, updated.room.name,
+              conflict.startTime, conflict.endTime
             );
           }
         }
       }
+      // CENÁRIO 2: Rejeição
+      else if (newStatus === BookingStatus.REJECTED && existing.status !== BookingStatus.REJECTED) {
+        await sendRejectionEmail(
+          existing.user.email, updated.title, updated.room.name,
+          updated.startTime, updated.endTime
+        );
+      }
     }
 
-    return new Response(JSON.stringify(updatedBooking), { status: 200 });
-
+    return new Response(JSON.stringify(updated), { status: 200 });
   } catch (error) {
-    console.error('❌ ERRO DETALHADO NO PUT /api/bookings:', error);
-    return new Response(JSON.stringify({ error: 'Erro interno' }), { status: 500 });
+    console.error('Erro no PUT /api/bookings:', error);
+    return new Response(JSON.stringify({ error: 'Erro ao atualizar' }), { status: 500 });
   }
 }
 
-// ----------------------------------------------------------------------
-// DELETE - CANCELAR RESERVA
-// ----------------------------------------------------------------------
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const email = searchParams.get('email');
+    const roomId = searchParams.get('roomId');
+    const all = searchParams.get('all');
+
+    let whereClause: any = {};
+    if (email) whereClause.user = { email };
+    if (roomId) whereClause.roomId = roomId;
+
+    const bookings = await prisma.booking.findMany({
+      where: Object.keys(whereClause).length > 0 || all ? whereClause : undefined,
+      include: {
+        user: { select: { name: true, email: true } },
+        room: { select: { name: true, capacity: true, amenities: true } }
+      },
+      orderBy: { startTime: 'asc' }
+    });
+
+    return new Response(JSON.stringify(bookings), { status: 200 });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: 'Erro ao buscar' }), { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (!id) {
-      return new Response(JSON.stringify({ error: 'ID do agendamento é obrigatório' }), { status: 400 });
-    }
+    if (!id) return new Response(JSON.stringify({ error: 'ID é obrigatório' }), { status: 400 });
 
-    // Precisamos incluir o usuário e a sala para conseguir os dados para o e-mail
-    const existing = await prisma.booking.findUnique({ 
-      where: { id },
-      include: { user: true, room: true } 
+    const existing = await prisma.booking.findUnique({
+      where: { id }, include: { user: true, room: true }
     });
-    
-    if (!existing) {
-      return new Response(JSON.stringify({ error: 'Agendamento não encontrado' }), { status: 404 });
-    }
 
-    // Deleta a reserva do banco
+    if (!existing) return new Response(JSON.stringify({ error: 'Agendamento não encontrado' }), { status: 404 });
+
     await prisma.booking.delete({ where: { id } });
 
-    // Dispara o e-mail de cancelamento para o usuário
     if (existing.user.email) {
       await sendCancellationEmail(
-        existing.user.email,
-        existing.title,
-        existing.room.name,
-        existing.startTime,
-        existing.endTime
+        existing.user.email, existing.title, existing.room.name,
+        existing.startTime, existing.endTime
       );
     }
 
     return new Response(null, { status: 204 });
   } catch (error) {
-    console.error('❌ ERRO DETALHADO NO DELETE /api/bookings:', error);
     return new Response(JSON.stringify({ error: 'Erro interno' }), { status: 500 });
   }
 }

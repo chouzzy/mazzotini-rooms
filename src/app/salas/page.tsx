@@ -58,7 +58,7 @@ export default function RoomsPage() {
       
       <Container maxW="6xl" py={10}>
         <Stack gap={3} mb={10} textAlign="center">
-          <Heading size="3xl" color="gray.800">Espaços Disponíveis</Heading>
+          <Heading size="3xl" color="brand.500">Espaços Disponíveis</Heading>
           <Text color="fg.muted" fontSize="lg">
             Encontre e reserve a sala ideal para a sua próxima reunião ou momento de foco.
           </Text>
@@ -81,7 +81,7 @@ export default function RoomsPage() {
                 shadow="md" 
                 _hover={{ shadow: 'xl', transform: 'translateY(-4px)' }} 
                 transition="all 0.2s ease-in-out"
-                bg="white"
+                bg="gray.900"
               >
                 {/* Área da Imagem */}
                 <Box h="220px" bg="gray.100" position="relative">
@@ -115,13 +115,13 @@ export default function RoomsPage() {
                 </Box>
 
                 <Card.Body gap={4}>
-                  <Heading size="xl" color="gray.800" lineClamp={1}>{room.name}</Heading>
+                  <Heading size="xl" lineClamp={1}>{room.name}</Heading>
                   
                   <Text color="fg.muted" lineClamp={2} fontSize="sm" minH="40px">
                     {room.description || 'Nenhuma descrição fornecida para este espaço.'}
                   </Text>
                   
-                  <Flex align="center" gap={2} color="blue.600" fontWeight="medium" bg="blue.50" p={2} borderRadius="md" w="fit-content">
+                  <Flex align="center" gap={2} color="gray.50" fontWeight="medium" bg="gray.800" p={2} borderRadius="md" w="fit-content">
                     <Icon as={LuUsers} />
                     <Text fontSize="sm">Até {room.capacity} pessoas</Text>
                   </Flex>
@@ -130,7 +130,7 @@ export default function RoomsPage() {
                 <Card.Footer pt={0}>
                   <Button 
                     w="full" 
-                    colorPalette="blue" 
+                    _hover={{color:'brand.50', bgColor:'brand.900'}} bgColor={'brand.800'} color={'#FFFFFF'}
                     variant={room.isActive ? "solid" : "outline"}
                     onClick={() => router.push(`/salas/${room.id}`)}
                   >

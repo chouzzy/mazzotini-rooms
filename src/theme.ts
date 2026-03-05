@@ -1,62 +1,65 @@
 import { createSystem, defaultConfig, defineConfig } from "@chakra-ui/react"
 
+// Criamos uma configuração customizada partindo do padrão do Chakra
 const customConfig = defineConfig({
   theme: {
     tokens: {
       colors: {
+        // A Paleta Dourada da Mazzotini (Substituindo o Azul)
         brand: {
           50: { value: "#F9F6EE" },
           100: { value: "#F0EAD6" },
           200: { value: "#E6DBC0" },
           300: { value: "#DCD0AA" },
           400: { value: "#D2C594" },
-          500: { value: "#d2be82" }, // Cor Principal
+          500: { value: "#d2be82" },
           600: { value: "#B8A76E" },
           700: { value: "#9E905A" },
           800: { value: "#847946" },
           900: { value: "#6A6232" },
         },
-        // Azul Marinho Complementar (Accent)
-        accent: {
-          50: { value: "#E3F2FD" },
-          100: { value: "#BBDEFB" },
-          200: { value: "#90CAF9" },
-          300: { value: "#64B5F6" },
-          400: { value: "#42A5F5" },
-          500: { value: "#0C356A" }, // Azul Profundo Principal
-          600: { value: "#0A2C58" },
-          700: { value: "#082346" },
-          800: { value: "#05152A" },
-          900: { value: "#030A14" },
-        }
       },
     },
     semanticTokens: {
       colors: {
-        // Aqui definimos os "papéis" das cores
-        // Ex: Quando eu usar "primary.solid", ele usa o Brand 500
-        brand: {
-          solid: { value: "{colors.brand.500}" },
-          contrast: { value: "{colors.brand.100}" },
-          fg: { value: "{colors.brand.700}" },
-          muted: { value: "{colors.brand.200}" },
-          subtle: { value: "{colors.brand.50}" },
-          emphasized: { value: "{colors.brand.300}" },
-          focusRing: { value: "{colors.brand.500}" },
+        // Substituímos a paleta global "blue" pela nossa "brand"
+        blue: {
+          50: { value: '{colors.brand.50}' },
+          100: { value: '{colors.brand.100}' },
+          200: { value: '{colors.brand.200}' },
+          300: { value: '{colors.brand.300}' },
+          400: { value: '{colors.brand.400}' },
+          500: { value: '{colors.brand.500}' },
+          600: { value: '{colors.brand.600}' },
+          700: { value: '{colors.brand.700}' },
+          800: { value: '{colors.brand.800}' },
+          900: { value: '{colors.brand.900}' },
         },
-        accent: {
-          solid: { value: "{colors.accent.500}" },
-          contrast: { value: "#ffffff" }, // Texto branco no fundo azul
-          fg: { value: "{colors.accent.700}" },
-          muted: { value: "{colors.accent.200}" },
-          subtle: { value: "{colors.accent.50}" },
-          emphasized: { value: "{colors.accent.300}" },
-          focusRing: { value: "{colors.accent.500}" },
+        // Configuração semântica para forçar os fundos a serem escuros
+        bg: {
+          canvas: { value: '#171717' }, // Fundo principal super escuro (Slate 900)
+          panel: { value: '#272727' },  // Fundo dos painéis e modais (Slate 800)
+          subtle: { value: '#6A6232' }, // Fundo sutil (Slate 700)
         },
-        textPrimary: { value: "#4D4D4D" },
+        fg: {
+          DEFAULT: { value: '#f8fafc' }, // Texto principal branco/cinza claríssimo
+          muted: { value: '#cbd5e1' },   // Texto secundário (Slate 300)
+        },
+        border: {
+          DEFAULT: { value: '#334155' }, // Bordas escuras
+          muted: { value: '#475569' },
+        }
       },
     },
   },
+  // Força o sistema a usar os tokens de cores escuras que definimos acima
+  globalCss: {
+    body: {
+      bg: "bg.canvas",
+      color: "fg.DEFAULT",
+    }
+  }
 })
 
+// Mesclamos a nossa configuração customizada com os componentes padrão do Chakra
 export const system = createSystem(defaultConfig, customConfig)

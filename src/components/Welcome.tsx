@@ -42,25 +42,25 @@ export function Welcome() {
                         align="center"
                         gap={3}
                         bgGradient="to-r"
-                        gradientFrom="blue.500"
-                        gradientTo="blue.600"
+                        gradientFrom="blue.800"
+                        gradientTo="blue.900"
                         px={3}
                         py={1.5}
                         borderRadius="md"
                         shadow="sm"
                     >
                         <Icon as={LuSparkles} fontSize="xl" color="yellow.400" />
-                        <Text fontWeight="bold" letterSpacing="widest" textTransform="uppercase" fontSize="xs" color="white">
+                        <Text fontWeight="bold" letterSpacing="widest" textTransform="uppercase" fontSize="xs">
                             Sistema de Agendamento
                         </Text>
                     </Flex>
 
-                    <Flex flexDir="column" fontWeight="semibold" lineHeight="1.1" letterSpacing="tight" color="gray.800">
+                    <Flex flexDir="column" fontWeight="semibold" lineHeight="1.1" letterSpacing="tight">
                         <Text fontSize={{ base: "4xl", md: "5xl", lg: "6xl" }}>Agende sua reunião no</Text>
                         <Text color="blue.500" fontSize={{ base: "4xl", md: "5xl", lg: "6xl" }}>Mazzotini Rooms 👋</Text>
                     </Flex>
 
-                    <Text fontSize={{ base: "md", md: "lg" }} maxW="lg" lineHeight="tall" color="gray.600">
+                    <Text fontSize={{ base: "md", md: "lg" }} maxW="lg" lineHeight="tall" color="fg.muted">
                         Encontre e reserve o espaço ideal para suas reuniões, workshops ou momentos de foco.
                         Acompanhe a disponibilidade em tempo real e integre automaticamente com o Microsoft Teams.
                     </Text>

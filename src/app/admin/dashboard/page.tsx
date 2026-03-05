@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import { 
   Box, Heading, Table, Badge, Button, Flex, 
-  Spinner, Center, Text, Stack, SimpleGrid, Card
+  Spinner, Center, Text, Stack, SimpleGrid, Card,
+  Dialog, Input, Field, NativeSelect
 } from '@chakra-ui/react';
 import { 
   LuCheck, LuX, LuClock, LuCalendarCheck, 
-  LuBan, LuPrinter, LuHistory, LuTimer 
+  LuBan, LuPrinter, LuHistory, LuTimer, LuCalendarClock
 } from "react-icons/lu";
 import { toaster } from '@/components/ui/toaster';
 
@@ -17,6 +18,7 @@ interface Booking {
   startTime: string;
   endTime: string;
   status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
+  roomId: string; 
   room: {
     name: string;
     capacity: number;
@@ -28,12 +30,24 @@ interface Booking {
   };
 }
 
+interface RoomItem {
+  id: string;
+  name: string;
+  capacity: number;
+}
+
 export default function AdminDashboardPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState<'PENDING' | 'CONFIRMED' | 'PAST' | 'REJECTED'>('PENDING');
+
+  // Estados para o Modal de Remanejamento
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [bookingToReschedule, setBookingToReschedule] = useState<Booking | null>(null);
+  const [availableRooms, setAvailableRooms] = useState<RoomItem[]>([]);
+  const [rescheduleData, setRescheduleData] = useState({ roomId: '', startTime: '', endTime: '' });
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -86,7 +100,80 @@ export default function AdminDashboardPage() {
   };
 
   // -------------------------------------------------------------
-  // MÁGICA DE GERAÇÃO DE PDF NATIVA PARA A COPA
+  // FUNÇÕES DE REMANEJAMENTO (ADMIN)
+  // -------------------------------------------------------------
+  const handleOpenReschedule = async (booking: Booking) => {
+    setBookingToReschedule(booking);
+    
+    // Formatador para o input datetime-local (Y-M-D T H:M)
+    const formatForInput = (dateStr: string) => {
+      const d = new Date(dateStr);
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().slice(0, 16);
+    };
+
+    setRescheduleData({
+      roomId: booking.roomId || '', 
+      startTime: formatForInput(booking.startTime),
+      endTime: formatForInput(booking.endTime)
+    });
+
+    setIsRescheduleOpen(true);
+
+    try {
+      const res = await fetch('/api/rooms');
+      const data = await res.json();
+      const activeRooms = data.filter((r: any) => r.isActive);
+      setAvailableRooms(activeRooms);
+      
+      if (!booking.roomId && activeRooms.length > 0) {
+        const currentRoom = activeRooms.find((r: any) => r.name === booking.room.name);
+        if (currentRoom) {
+          setRescheduleData(prev => ({ ...prev, roomId: currentRoom.id }));
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao buscar salas para remanejamento", e);
+    }
+  };
+
+  const submitReschedule = async () => {
+    if (!bookingToReschedule || !rescheduleData.roomId || !rescheduleData.startTime || !rescheduleData.endTime) {
+      toaster.create({ title: 'Preencha todos os campos', type: 'warning' });
+      return;
+    }
+
+    setProcessingId(bookingToReschedule.id);
+    try {
+      const res = await fetch(`/api/bookings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: bookingToReschedule.id, 
+          roomId: rescheduleData.roomId,
+          startTime: new Date(rescheduleData.startTime).toISOString(),
+          endTime: new Date(rescheduleData.endTime).toISOString(),
+          status: bookingToReschedule.status 
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Falha ao remanejar reserva');
+      }
+
+      toaster.create({ title: 'Reserva remanejada com sucesso!', type: 'success' });
+      setIsRescheduleOpen(false);
+      fetchBookings(); 
+    } catch (error: any) {
+      toaster.create({ title: 'Erro', description: error.message, type: 'error' });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // MÁGICA DE GERAÇÃO DE PDF NATIVA PARA A COPA (Mantido cores claras para impressão)
   // -------------------------------------------------------------
   const handleGenerateCopaPDF = (booking: Booking) => {
     const printWindow = window.open('', '_blank');
@@ -124,7 +211,7 @@ export default function AdminDashboardPage() {
         <head>
           <title>OS Copa - ${booking.title}</title>
           <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; background: #fff; }
             .header { text-align: center; border-bottom: 3px solid #1e3a8a; padding-bottom: 20px; margin-bottom: 30px; }
             .header img { max-height: 70px; margin-bottom: 12px; }
             .title { font-size: 24px; color: #1e3a8a; font-weight: bold; margin: 0; text-transform: uppercase; letter-spacing: 1px;}
@@ -180,20 +267,19 @@ export default function AdminDashboardPage() {
   // -------------------------------------------------------------
   const now = new Date();
 
-  // Helper para calcular quanto tempo falta (Usado na urgência)
   const getUrgency = (dateString: string) => {
     const diffMs = new Date(dateString).getTime() - now.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     
-    if (diffMins <= 0) return null; // Já passou, vai cair na aba PAST
+    if (diffMins <= 0) return null; 
     
-    if (diffMins <= 60) return { text: `Em ${diffMins} min`, color: 'red' }; // Urgente!
+    if (diffMins <= 60) return { text: `Em ${diffMins} min`, color: 'red' }; 
     
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return { text: `Em ${diffHours} h`, color: 'orange' }; // Hoje
+    if (diffHours < 24) return { text: `Em ${diffHours} h`, color: 'orange' }; 
     
     const diffDays = Math.floor(diffHours / 24);
-    return { text: `Em ${diffDays} dias`, color: 'blue' }; // Futuro tranquilo
+    return { text: `Em ${diffDays} dias`, color: 'purple' }; 
   };
 
   const formatDate = (dateString: string) => {
@@ -203,15 +289,13 @@ export default function AdminDashboardPage() {
     });
   };
 
-  // Categorização das Reservas
   const pendingBookings = bookings.filter(b => b.status === 'PENDING' && new Date(b.startTime) >= now);
   const confirmedBookings = bookings.filter(b => b.status === 'CONFIRMED' && new Date(b.endTime) >= now);
   
-  // Reservas que já passaram do tempo (Vencidas / Realizadas)
   const pastBookings = bookings.filter(b => 
     (b.status === 'PENDING' && new Date(b.startTime) < now) || 
     (b.status === 'CONFIRMED' && new Date(b.endTime) < now)
-  ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()); // As mais recentes primeiro
+  ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()); 
 
   const rejectedBookings = bookings.filter(b => b.status === 'REJECTED' || b.status === 'CANCELLED');
 
@@ -223,89 +307,106 @@ export default function AdminDashboardPage() {
   return (
     <Box>
       <Flex justify="space-between" align="center" mb={8}>
-        <Heading size="lg" color="gray.800">Visão Geral & Aprovações</Heading>
+        <Heading size="lg" color="fg.DEFAULT">Visão Geral & Aprovações</Heading>
       </Flex>
 
-      {/* 4 CARDS DE RESUMO AGORA */}
       <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} gap={4} mb={8}>
-        
-        {/* Card PENDENTES */}
-        <Card.Root cursor="pointer" onClick={() => setActiveTab('PENDING')} borderWidth="2px" borderColor={activeTab === 'PENDING' ? 'yellow.400' : 'transparent'} bg={activeTab === 'PENDING' ? 'yellow.50' : 'white'}>
+        <Card.Root 
+          cursor="pointer" 
+          onClick={() => setActiveTab('PENDING')} 
+          borderWidth="1px" 
+          borderColor={activeTab === 'PENDING' ? 'yellow.600' : 'yellow.300'} 
+          bg={activeTab === 'PENDING' ? 'yellow.500' : 'transparent'}
+        >
           <Card.Body p={4}>
             <Flex align="center" justify="space-between">
               <Box>
-                <Text color="fg.muted" fontSize="xs" fontWeight="bold" textTransform="uppercase">Aguardam Aprovação</Text>
-                <Heading size="xl" color="yellow.600">{pendingBookings.length}</Heading>
+                <Text color={'#FFFFFF'} fontSize="sm" fontWeight="bold" textTransform="uppercase">Aguardam Aprovação</Text>
+                <Heading size="xl" color="#FFFFFF">{pendingBookings.length}</Heading>
               </Box>
-              <Box p={3} bg="yellow.100" color="yellow.600" borderRadius="md"><LuClock size={20} /></Box>
+              <Box p={3} bgColor={'yellow.500'} color="yellow.50" borderRadius="md"><LuClock size={20} /></Box>
             </Flex>
           </Card.Body>
         </Card.Root>
 
-        {/* Card APROVADAS */}
-        <Card.Root cursor="pointer" onClick={() => setActiveTab('CONFIRMED')} borderWidth="2px" borderColor={activeTab === 'CONFIRMED' ? 'green.400' : 'transparent'} bg={activeTab === 'CONFIRMED' ? 'green.50' : 'white'}>
+        <Card.Root 
+          cursor="pointer" 
+          onClick={() => setActiveTab('CONFIRMED')} 
+          borderWidth="1px"  
+          borderColor={activeTab === 'CONFIRMED' ? 'green.600' : 'green.300'} 
+          bg={activeTab === 'CONFIRMED' ? 'green.500' : 'transparent'}
+        >
           <Card.Body p={4}>
             <Flex align="center" justify="space-between">
               <Box>
-                <Text color="fg.muted" fontSize="xs" fontWeight="bold" textTransform="uppercase">Aprovadas (Futuras)</Text>
-                <Heading size="xl" color="green.600">{confirmedBookings.length}</Heading>
+                <Text color="#FFFFFF" fontSize="sm" fontWeight="bold" textTransform="uppercase">Aprovadas (Futuras)</Text>
+                <Heading size="xl" color="#FFFFFF">{confirmedBookings.length}</Heading>
               </Box>
-              <Box p={3} bg="green.100" color="green.600" borderRadius="md"><LuCalendarCheck size={20} /></Box>
+              <Box p={3} bg="green.500" color="green.50" borderRadius="md"><LuCalendarCheck size={20} /></Box>
             </Flex>
           </Card.Body>
         </Card.Root>
 
-        {/* Card HISTÓRICO / VENCIDAS */}
-        <Card.Root cursor="pointer" onClick={() => setActiveTab('PAST')} borderWidth="2px" borderColor={activeTab === 'PAST' ? 'gray.400' : 'transparent'} bg={activeTab === 'PAST' ? 'gray.50' : 'white'}>
+        <Card.Root 
+          cursor="pointer" 
+          onClick={() => setActiveTab('PAST')} 
+          borderWidth="1px"  
+          borderColor={activeTab === 'PAST' ? 'gray.500' : 'gray.300'} 
+          bg={activeTab === 'PAST' ? 'gray.500' : 'transparent'}
+        >
           <Card.Body p={4}>
             <Flex align="center" justify="space-between">
               <Box>
-                <Text color="fg.muted" fontSize="xs" fontWeight="bold" textTransform="uppercase">Histórico / Vencidas</Text>
-                <Heading size="xl" color="gray.600">{pastBookings.length}</Heading>
+                <Text color="#FFFFFF" fontSize="sm" fontWeight="bold" textTransform="uppercase">Histórico / Vencidas</Text>
+                <Heading size="xl" color="#FFFFFF">{pastBookings.length}</Heading>
               </Box>
-              <Box p={3} bg="gray.200" color="gray.600" borderRadius="md"><LuHistory size={20} /></Box>
+              <Box p={3} bg="gray.500" color="gray.50" borderRadius="md"><LuHistory size={20} /></Box>
             </Flex>
           </Card.Body>
         </Card.Root>
 
-        {/* Card REJEITADAS */}
-        <Card.Root cursor="pointer" onClick={() => setActiveTab('REJECTED')} borderWidth="2px" borderColor={activeTab === 'REJECTED' ? 'red.400' : 'transparent'} bg={activeTab === 'REJECTED' ? 'red.50' : 'white'}>
+        <Card.Root 
+          cursor="pointer" 
+          onClick={() => setActiveTab('REJECTED')} 
+          borderWidth="1px"  
+          borderColor={activeTab === 'REJECTED' ? 'red.500' : 'red.300'} 
+          bg={activeTab === 'REJECTED' ? 'red.500' : 'transparent'}
+        >
           <Card.Body p={4}>
             <Flex align="center" justify="space-between">
               <Box>
-                <Text color="fg.muted" fontSize="xs" fontWeight="bold" textTransform="uppercase">Rejeitadas / Canc.</Text>
-                <Heading size="xl" color="red.600">{rejectedBookings.length}</Heading>
+                <Text color="#FFFFFF" fontSize="sm" fontWeight="bold" textTransform="uppercase">Rejeitadas / Canc.</Text>
+                <Heading size="xl" color="#FFFFFF">{rejectedBookings.length}</Heading>
               </Box>
-              <Box p={3} bg="red.100" color="red.600" borderRadius="md"><LuBan size={20} /></Box>
+              <Box p={3} bg="red.500" color="red.50" borderRadius="md"><LuBan size={20} /></Box>
             </Flex>
           </Card.Body>
         </Card.Root>
-
       </SimpleGrid>
 
       <Box mb={8}>
-        <Heading size="md" mb={4} color="gray.700">
-          {activeTab === 'PENDING' && 'Reservas Pendentes'}
+        <Heading size="md" mb={4} color="fg.DEFAULT">
+          {activeTab === 'PENDING' && 'Ações Pendentes (Ordene por Urgência)'}
           {activeTab === 'CONFIRMED' && 'Lista de Reservas Aprovadas'}
           {activeTab === 'PAST' && 'Histórico de Reservas Realizadas ou Expiradas'}
           {activeTab === 'REJECTED' && 'Histórico de Rejeições'}
         </Heading>
 
         {loading ? (
-          <Center py={10}><Spinner size="xl" color="blue.500" /></Center>
+          <Center py={10}><Spinner size="xl" color="brand.500" /></Center>
         ) : currentList.length === 0 ? (
-          <Box p={6} textAlign="center" borderWidth="1px" borderRadius="lg" bg="white" color="fg.muted">
+          <Box p={6} textAlign="center" borderWidth="1px" borderColor="border.muted" borderRadius="lg" bg="bg.panel" color="fg.muted">
             Nenhuma reserva encontrada nesta categoria.
           </Box>
         ) : (
-          <Box borderWidth="1px" borderRadius="lg" bg="white" overflowX="auto">
-            <Table.Root size="md" variant="line">
+          <Box borderRadius="lg"  overflowX="auto">
+            <Table.Root size="md" variant="outline">
               <Table.Header>
                 <Table.Row>
-                  <Table.ColumnHeader whiteSpace="nowrap">Reunião & Sala</Table.ColumnHeader>
-                  <Table.ColumnHeader whiteSpace="nowrap">Requerente</Table.ColumnHeader>
-                  <Table.ColumnHeader whiteSpace="nowrap">Data e Hora</Table.ColumnHeader>
-                  <Table.ColumnHeader textAlign="right" whiteSpace="nowrap">Status / Ação</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap" color="brand.600">Reunião & Sala</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap" color="brand.600">Requerente</Table.ColumnHeader>
+                  <Table.ColumnHeader whiteSpace="nowrap" color="brand.600">Data e Hora</Table.ColumnHeader>
+                  <Table.ColumnHeader textAlign="right" whiteSpace="nowrap" color="brand.600">Status / Ação</Table.ColumnHeader>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
@@ -315,22 +416,22 @@ export default function AdminDashboardPage() {
                   return (
                     <Table.Row key={booking.id}>
                       <Table.Cell>
-                        <Text fontWeight="bold" whiteSpace="nowrap">{booking.title}</Text>
+                        <Text fontWeight="bold" color="fg.DEFAULT" whiteSpace="nowrap">{booking.title}</Text>
                         <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">{booking.room.name}</Text>
                       </Table.Cell>
                       <Table.Cell>
-                        <Text whiteSpace="nowrap">{booking.user?.name || 'Usuário Desconhecido'}</Text>
+                        <Text color="fg.DEFAULT" whiteSpace="nowrap">{booking.user?.name || 'Usuário Desconhecido'}</Text>
                         <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">{booking.user?.email}</Text>
                       </Table.Cell>
                       <Table.Cell>
                         <Flex direction="column" gap={1}>
-                          <Text whiteSpace="nowrap">{formatDate(booking.startTime)}</Text>
+                          <Text color="fg.DEFAULT" whiteSpace="nowrap">{formatDate(booking.startTime)}</Text>
                           <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">até {formatDate(booking.endTime)}</Text>
                         </Flex>
                       </Table.Cell>
                       <Table.Cell textAlign="right">
                         
-                        {/* AÇÕES DA ABA PENDENTE (Com Urgência) */}
+                        {/* AÇÕES DA ABA PENDENTE */}
                         {activeTab === 'PENDING' && (
                           <Flex direction="column" align="flex-end" gap={2}>
                             {urgency && (
@@ -338,11 +439,14 @@ export default function AdminDashboardPage() {
                                 <LuTimer style={{ marginRight: '4px' }} /> {urgency.text}
                               </Badge>
                             )}
-                            <Stack direction="row" gap={2}>
-                              <Button size="sm" colorPalette="green" onClick={() => handleUpdateStatus(booking.id, 'CONFIRMED')} loading={processingId === booking.id}>
+                            <Stack direction="row" gap={2} mt={1}>
+                              <Button size="xs" colorPalette="green" onClick={() => handleUpdateStatus(booking.id, 'CONFIRMED')} loading={processingId === booking.id}>
                                 <LuCheck /> Aprovar
                               </Button>
-                              <Button size="sm" colorPalette="red" variant="outline" onClick={() => handleUpdateStatus(booking.id, 'REJECTED')} loading={processingId === booking.id}>
+                              <Button size="xs" colorPalette="cyan" variant="solid" onClick={() => handleOpenReschedule(booking)}>
+                                <LuCalendarClock /> Remanejar
+                              </Button>
+                              <Button size="xs" colorPalette="red" variant="solid" onClick={() => handleUpdateStatus(booking.id, 'REJECTED')} loading={processingId === booking.id}>
                                 <LuX /> Rejeitar
                               </Button>
                             </Stack>
@@ -352,25 +456,26 @@ export default function AdminDashboardPage() {
                         {/* AÇÕES DA ABA APROVADAS */}
                         {activeTab === 'CONFIRMED' && (
                           <Stack direction="row" gap={2} justify="flex-end" align="center">
-                            <Button size="sm" colorPalette="blue" variant="outline" title="Gerar Ordem de Serviço para a Copa" onClick={() => handleGenerateCopaPDF(booking)}>
-                              <LuPrinter /> Ordem Copa
+                            <Button size="xs" colorPalette="cyan" variant="solid" onClick={() => handleOpenReschedule(booking)}>
+                                <LuCalendarClock /> Remanejar
                             </Button>
-                            <Button size="sm" colorPalette="red" variant="ghost" title="Revogar Aprovação" onClick={() => handleCancelApproved(booking.id)} loading={processingId === booking.id}>
+                            <Button size="xs" colorPalette="pink" variant="solid" title="Gerar Ordem de Serviço para a Copa" onClick={() => handleGenerateCopaPDF(booking)}>
+                              <LuPrinter /> Copa
+                            </Button>
+                            <Button size="xs" colorPalette="red" variant="solid" title="Revogar Aprovação" onClick={() => handleCancelApproved(booking.id)} loading={processingId === booking.id}>
                               <LuBan /> Cancelar
                             </Button>
                           </Stack>
                         )}
 
-                        {/* STATUS DA ABA HISTÓRICO / VENCIDAS */}
                         {activeTab === 'PAST' && (
-                          <Badge colorPalette={booking.status === 'CONFIRMED' ? 'green' : 'gray'} size="sm">
+                          <Badge colorPalette={booking.status === 'CONFIRMED' ? 'green' : 'gray'} size="sm" variant="subtle">
                             {booking.status === 'CONFIRMED' ? 'Realizada' : 'Expirou sem Aprovação'}
                           </Badge>
                         )}
 
-                        {/* STATUS DA ABA REJEITADAS */}
                         {activeTab === 'REJECTED' && (
-                          <Badge colorPalette="red" size="sm">
+                          <Badge colorPalette="red" size="sm" variant="subtle">
                             {booking.status === 'REJECTED' ? 'Rejeitada' : 'Cancelada pelo Usuário'}
                           </Badge>
                         )}
@@ -384,6 +489,79 @@ export default function AdminDashboardPage() {
           </Box>
         )}
       </Box>
+
+      {/* MODAL DE REMANEJAMENTO */}
+      <Dialog.Root open={isRescheduleOpen} onOpenChange={(e) => !e.open && setIsRescheduleOpen(false)} size="lg">
+        <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
+        <Dialog.Positioner>
+          <Dialog.Content borderRadius="xl" shadow="2xl" bg="bg.panel">
+            <Dialog.Header>
+              <Dialog.Title color="fg.DEFAULT">Remanejar Reunião</Dialog.Title>
+            </Dialog.Header>
+            <Dialog.CloseTrigger />
+            
+            <Dialog.Body pb={6}>
+              <Text color="fg.muted" fontSize="sm" mb={4}>
+                Altere os detalhes da reserva <strong>{bookingToReschedule?.title}</strong>. 
+                Isso notificará o solicitante ({bookingToReschedule?.user.name}) sobre a mudança.
+              </Text>
+              
+              <Stack gap={4}>
+                <Field.Root>
+                  <Field.Label color="fg.DEFAULT">Nova Sala</Field.Label>
+                  <NativeSelect.Root>
+                    <NativeSelect.Field 
+                      value={rescheduleData.roomId} 
+                      onChange={(e) => setRescheduleData({...rescheduleData, roomId: e.target.value})}
+                      bg="bg.canvas"
+                      borderColor="border.muted"
+                      color="fg.DEFAULT"
+                    >
+                      <option value="" style={{ color: 'black' }}>Selecione uma sala</option>
+                      {availableRooms.map(room => (
+                        <option key={room.id} value={room.id} style={{ color: 'black' }}>{room.name} (Cap. {room.capacity})</option>
+                      ))}
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                  </NativeSelect.Root>
+                </Field.Root>
+
+                <Flex gap={4} direction={{ base: 'column', sm: 'row' }}>
+                  <Field.Root flex={1}>
+                    <Field.Label color="fg.DEFAULT">Novo Início</Field.Label>
+                    <Input 
+                      type="datetime-local" 
+                      value={rescheduleData.startTime}
+                      onChange={(e) => setRescheduleData({...rescheduleData, startTime: e.target.value})}
+                      bg="bg.canvas"
+                      borderColor="border.muted"
+                    />
+                  </Field.Root>
+
+                  <Field.Root flex={1}>
+                    <Field.Label color="fg.DEFAULT">Novo Fim</Field.Label>
+                    <Input 
+                      type="datetime-local" 
+                      value={rescheduleData.endTime}
+                      onChange={(e) => setRescheduleData({...rescheduleData, endTime: e.target.value})}
+                      bg="bg.canvas"
+                      borderColor="border.muted"
+                    />
+                  </Field.Root>
+                </Flex>
+              </Stack>
+            </Dialog.Body>
+            
+            <Dialog.Footer bg="whiteAlpha.50" borderTopWidth="1px" borderColor="border.muted" borderBottomRadius="xl">
+              <Button variant="solid" color="fg.muted" onClick={() => setIsRescheduleOpen(false)}>Cancelar</Button>
+              <Button colorPalette="blue" onClick={submitReschedule} loading={!!processingId}>
+                Salvar Alterações
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+
     </Box>
   );
 }

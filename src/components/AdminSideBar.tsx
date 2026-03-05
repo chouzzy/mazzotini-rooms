@@ -25,7 +25,7 @@ export function AdminSidebar() {
         zIndex={50}
       >
         <Button
-          colorPalette="purple"
+          colorPalette="brand"
           size="lg"
           borderRadius="full"
           shadow="2xl"
@@ -73,7 +73,7 @@ export function AdminSidebar() {
             <Button 
               as="a"
               variant={pathname === '/admin/dashboard' ? 'solid' : 'ghost'} 
-              colorPalette="purple" 
+              colorPalette="brand" 
               justifyContent="flex-start" 
               w="full"
               onClick={handleLinkClick}
@@ -86,7 +86,7 @@ export function AdminSidebar() {
             <Button 
               as="a"
               variant={pathname === '/admin/salas' ? 'solid' : 'ghost'} 
-              colorPalette="purple" 
+              colorPalette="brand" 
               justifyContent="flex-start" 
               w="full"
               onClick={handleLinkClick}
@@ -99,7 +99,7 @@ export function AdminSidebar() {
             <Button 
               as="a"
               variant={pathname === '/admin/usuarios' ? 'solid' : 'ghost'} 
-              colorPalette="purple" 
+              colorPalette="brand" 
               justifyContent="flex-start" 
               w="full"
               onClick={handleLinkClick}

@@ -32,19 +32,19 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  role          Role      @default(USER) // <-- GARANTA QUE TEM ESTE CAMPO PARA O PAINEL ADMIN
+  role          Role      @default(USER) 
+  isVip         Boolean   @default(false) // <-- NOVO: CAMPO VIP PARA REGRAS DE NEGÓCIO
   accounts      Account[]
   sessions      Session[]
   bookings      Booking[]
 }
-
 
 model Room {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   capacity    Int
   imageUrl    String?
-  amenities   String[]  @default([]) // <-- ADICIONE ESTA LINHA
+  amenities   String[]  @default([]) 
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -54,16 +54,18 @@ model Room {
 }
 
 model Booking {
-  id        String        @id @default(auto()) @map("_id") @db.ObjectId
-  title     String
-  startTime DateTime
-  endTime   DateTime
-  type      MeetingType   @default(IN_PERSON)
-  status    BookingStatus @default(PENDING)
+  id               String        @id @default(auto()) @map("_id") @db.ObjectId
+  title            String
+  startTime        DateTime
+  endTime          DateTime
+  type             MeetingType   @default(IN_PERSON)
+  status           BookingStatus @default(PENDING)
 
-  meetingLink String?
-  meetingId   String?
+  meetingLink      String?
+  meetingId        String?
   onlineMeetingUrl String?
+  
+  guests           String?       
 
   userId String @db.ObjectId
   user   User   @relation(fields: [userId], references: [id])
@@ -87,7 +89,7 @@ model Account {
   access_token      String? @db.String
   expires_at        Int?
   
-  ext_expires_in    Int?    // <-- CAMPO EXTRA OBRIGATÓRIO PARA A MICROSOFT
+  ext_expires_in    Int?    
 
   token_type        String?
   scope             String?

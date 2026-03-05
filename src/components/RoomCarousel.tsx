@@ -112,7 +112,7 @@ export default function RoomCarousel() {
                   </Text>
                   <Separator />
                   <Flex gap={2}>
-                    <Button colorPalette="blue" flex="1" size="sm" onClick={() => handleBooking(room)}>
+                    <Button _hover={{color:'brand.50', bgColor:'brand.900'}} bgColor={'brand.800'} color={'#FFFFFF'} flex="1" size="sm" onClick={() => handleBooking(room)}>
                       Reservar
                     </Button>
                   </Flex>

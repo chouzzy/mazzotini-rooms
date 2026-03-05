@@ -10,10 +10,7 @@ import {
 import { LuClock, LuDoorOpen, LuUser } from 'react-icons/lu';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 
-// Configuração do localizador (datas em PT)
-const locales = {
-  'pt': pt,
-};
+const locales = { 'pt': pt };
 
 const localizer = dateFnsLocalizer({
   format,
@@ -33,15 +30,17 @@ interface BookingEvent {
 
 // COMPONENTE CUSTOMIZADO PARA O BLOCO DO EVENTO
 const CustomEvent = ({ event }: EventProps<BookingEvent>) => {
-  // Define a cor baseada no status (Aprovada = Azul, Pendente = Laranja)
   const isPending = event.resource?.status === 'PENDING';
-  const bgColor = isPending ? 'orange.400' : 'blue.500';
-  const borderColor = isPending ? 'orange.600' : 'blue.700';
+  
+  // Cores fortes que contrastam bem no Dark Mode
+  const bgColor = isPending ? 'orange.500' : 'brand.600';
+  const borderColor = isPending ? 'orange.700' : 'brand.800';
+  const textColor = isPending ? 'gray.900' : 'white';
 
   return (
     <Box 
       bg={bgColor} 
-      color="white" 
+      color={textColor} 
       h="100%" 
       w="100%" 
       borderRadius="md" 
@@ -53,10 +52,10 @@ const CustomEvent = ({ event }: EventProps<BookingEvent>) => {
       transition="all 0.2s"
       overflow="hidden"
     >
-      <Text fontSize="xs" fontWeight="bold" maxLines={1} lineHeight="1">
+      <Text fontSize="xs" fontWeight="bold" lineClamp={1} lineHeight="1">
         {event.title}
       </Text>
-      <Text fontSize="2xs" opacity={0.9} mt={1} maxLines={1}>
+      <Text fontSize="2xs" opacity={0.9} mt={1} lineClamp={1}>
         {event.resource?.room?.name}
       </Text>
     </Box>
@@ -66,9 +65,11 @@ const CustomEvent = ({ event }: EventProps<BookingEvent>) => {
 export default function RoomCalendar() {
   const [events, setEvents] = useState<BookingEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<View>(Views.WEEK); 
   
-  // Estado para o Modal de Detalhes
+  // Controle de Navegação e Visualização
+  const [view, setView] = useState<View>(Views.WEEK); 
+  const [date, setDate] = useState<Date>(new Date()); // <-- NOVO ESTADO: Controla a data atual
+  
   const [selectedEvent, setSelectedEvent] = useState<BookingEvent | null>(null);
 
   useEffect(() => {
@@ -78,7 +79,6 @@ export default function RoomCalendar() {
         if (!res.ok) throw new Error('Falha ao carregar agendamentos');
         const data = await res.json();
 
-        // Removemos as reservas Rejeitadas/Canceladas do calendário para limpar a visão
         const validBookings = data.filter((b: any) => b.status !== 'REJECTED' && b.status !== 'CANCELLED');
 
         const formattedEvents = validBookings.map((booking: any) => ({
@@ -104,7 +104,7 @@ export default function RoomCalendar() {
     return (
       <Center p={10} minH="60vh">
         <Stack align="center" gap={4}>
-          <Spinner size="xl" color="blue.500" />
+          <Spinner size="xl" color="brand.500" />
           <Text color="fg.muted">Montando calendário...</Text>
         </Stack>
       </Center>
@@ -113,38 +113,38 @@ export default function RoomCalendar() {
 
   return (
     <Box 
-      height={{ base: "700px", md: "85vh" }} // Altura adaptativa
+      height={{ base: "700px", md: "85vh" }}
       w="100%"
       p={{ base: 2, md: 4 }} 
-      // MÁGICA: No Chakra UI V3, usamos 'css' em vez de 'sx' para estilizações profundas
       css={{
         '& .rbc-calendar': { 
           fontFamily: 'inherit',
-          color: 'var(--chakra-colors-gray-800)',
+          color: 'var(--chakra-colors-gray-100)',
+          backgroundColor: 'transparent',
         },
         /* Toolbar (Botões de Navegação) */
         '& .rbc-toolbar': { 
           flexWrap: 'wrap', 
           gap: '12px', 
           justifyContent: 'space-between',
-          marginBottom: '20px'
+          marginBottom: '20px',
         },
         '& .rbc-toolbar button': { 
           fontSize: { base: '12px', md: '14px' }, 
           padding: { base: '6px 12px', md: '6px 16px' },
           borderRadius: '8px',
-          border: '1px solid var(--chakra-colors-gray-200)',
-          backgroundColor: 'white',
-          color: 'var(--chakra-colors-gray-600)',
+          border: '1px solid var(--chakra-colors-gray-600)',
+          backgroundColor: 'transparent',
+          color: 'var(--chakra-colors-gray-200)',
           fontWeight: '500',
           transition: 'all 0.2s ease',
         },
         '& .rbc-toolbar button:hover': {
-          backgroundColor: 'var(--chakra-colors-gray-50)',
+          backgroundColor: 'var(--chakra-colors-whiteAlpha-200)',
         },
         '& .rbc-toolbar button.rbc-active': {
-          backgroundColor: 'var(--chakra-colors-blue-500)',
-          borderColor: 'var(--chakra-colors-blue-500)',
+          backgroundColor: 'var(--chakra-colors-brand-600)',
+          borderColor: 'var(--chakra-colors-brand-500)',
           color: 'white',
           boxShadow: 'var(--chakra-shadows-md)',
         },
@@ -153,50 +153,69 @@ export default function RoomCalendar() {
           fontSize: { base: '16px', md: '20px' },
           textTransform: 'capitalize',
         },
-        /* Grid do Calendário (O corpo principal) */
+
+        /* =========== MAGIA DO DARK MODE (FIM DAS LINHAS BRANCAS) =========== */
+        
+        /* Grid Principal e Bordas Externas */
         '& .rbc-month-view, & .rbc-time-view, & .rbc-agenda-view': {
           borderRadius: '12px',
-          border: '1px solid var(--chakra-colors-gray-200)',
+          border: '1px solid var(--chakra-colors-gray-700)',
           overflow: 'hidden',
-          backgroundColor: 'white',
-          boxShadow: 'var(--chakra-shadows-sm)',
+          backgroundColor: 'var(--chakra-colors-gray-900)',
+          boxShadow: 'var(--chakra-shadows-md)',
         },
+        /* Cabeçalho dos dias da semana */
         '& .rbc-header': { 
           padding: '12px 4px', 
           fontWeight: '600', 
-          color: 'var(--chakra-colors-gray-500)',
-          borderBottom: '1px solid var(--chakra-colors-gray-200)',
+          color: 'var(--chakra-colors-gray-300)',
+          borderBottom: '1px solid var(--chakra-colors-gray-700)',
+          borderLeft: '1px solid var(--chakra-colors-gray-700)',
           fontSize: '12px',
           textTransform: 'uppercase',
           letterSpacing: '0.05em'
         },
-        /* Bordas internas mais suaves */
+        '& .rbc-header + .rbc-header': {
+          borderLeft: '1px solid var(--chakra-colors-gray-700)',
+        },
+        /* Bordas internas verticais (Dias e Colunas) */
         '& .rbc-day-bg + .rbc-day-bg, & .rbc-month-row + .rbc-month-row': {
-          borderColor: 'var(--chakra-colors-gray-100)',
+          borderColor: 'var(--chakra-colors-gray-700)',
         },
         '& .rbc-time-content > * + * > *': {
-          borderColor: 'var(--chakra-colors-gray-100)',
+          borderColor: 'var(--chakra-colors-gray-700)',
         },
+        /* Bordas internas horizontais (Horas e Meia-Horas) */
         '& .rbc-timeslot-group': {
-          borderColor: 'var(--chakra-colors-gray-100)',
+          borderBottom: '1px solid var(--chakra-colors-gray-700)',
+        },
+        '& .rbc-time-slot': {
+          borderTop: '1px solid var(--chakra-colors-gray-700) !important', // Mata a linha branca da meia hora
+        },
+        '& .rbc-day-slot .rbc-time-slot': {
+          borderTop: '1px dotted var(--chakra-colors-gray-700)', // Linha pontilhada suave na meia hora
         },
         '& .rbc-time-header-content': {
-          borderColor: 'var(--chakra-colors-gray-200)',
+          borderLeft: '1px solid var(--chakra-colors-gray-700)',
         },
-        /* Linha do tempo atual */
+        '& .rbc-time-header-gutter': {
+          borderBottom: '1px solid var(--chakra-colors-gray-700)',
+        },
+        /* Linha indicadora do horário atual */
         '& .rbc-current-time-indicator': {
           backgroundColor: 'var(--chakra-colors-red-500)',
           height: '2px',
         },
-        /* Dia atual (Today) */
+        /* Destaque para o Dia de Hoje */
         '& .rbc-today': { 
-          backgroundColor: 'var(--chakra-colors-blue-50)',
+          backgroundColor: 'var(--chakra-colors-whiteAlpha-50)',
         },
         '& .rbc-time-header .rbc-today': {
-          color: 'var(--chakra-colors-blue-700)',
-          backgroundColor: 'var(--chakra-colors-blue-50)',
+          color: 'var(--chakra-colors-brand-300)',
+          backgroundColor: 'var(--chakra-colors-whiteAlpha-50)',
         },
-        /* Container Base do Evento (Limpamos para usar o CustomEvent) */
+
+        /* =========== AJUSTES DOS EVENTOS =========== */
         '& .rbc-event': { 
           backgroundColor: 'transparent',
           padding: '0',
@@ -216,6 +235,8 @@ export default function RoomCalendar() {
         culture="pt"
         view={view}
         onView={setView} 
+        date={date} // <-- PROPRIEDADE ADICIONADA
+        onNavigate={(newDate) => setDate(newDate)} // <-- FUNÇÃO DE NAVEGAÇÃO ADICIONADA
         messages={{
           next: "Próximo",
           previous: "Anterior",
@@ -230,16 +251,16 @@ export default function RoomCalendar() {
           noEventsInRange: "Sem eventos neste período.",
         }}
         components={{
-          event: CustomEvent // Injeta nosso design premium nos blocos
+          event: CustomEvent 
         }}
         onSelectEvent={(event) => setSelectedEvent(event)} 
       />
 
-      {/* MODAL DE DETALHES DO EVENTO (SOPHISTICATED) */}
+      {/* MODAL DE DETALHES DO EVENTO (DARK MODE ADAPTADO) */}
       <Dialog.Root open={!!selectedEvent} onOpenChange={(e) => !e.open && setSelectedEvent(null)}>
-        <Dialog.Backdrop bg="blackAlpha.400" backdropFilter="blur(4px)" />
+        <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(4px)" />
         <Dialog.Positioner>
-          <Dialog.Content borderRadius="xl" shadow="2xl">
+          <Dialog.Content borderRadius="xl" shadow="2xl" bg="bg.panel">
             <Dialog.CloseTrigger />
             {selectedEvent && (
               <Box p={6}>
@@ -248,44 +269,47 @@ export default function RoomCalendar() {
                     colorPalette={selectedEvent.resource.status === 'CONFIRMED' ? 'green' : 'yellow'} 
                     mb={3}
                     size="md"
+                    variant="solid"
                   >
                     {selectedEvent.resource.status === 'CONFIRMED' ? 'Aprovada' : 'Aguardando Aprovação'}
                   </Badge>
-                  <Heading size="xl" lineHeight="1.2">{selectedEvent.title}</Heading>
+                  <Heading size="xl" lineHeight="1.2" color="fg.DEFAULT">
+                    {selectedEvent.title}
+                  </Heading>
                 </Box>
 
-                <Separator mb={5} />
+                <Separator mb={5} borderColor="border.muted" />
 
                 <Stack gap={4}>
-                  <Flex align="center" gap={3} color="gray.600">
-                    <Box p={2} bg="gray.100" borderRadius="md" color="gray.700">
+                  <Flex align="center" gap={3}>
+                    <Box p={2} bg="whiteAlpha.200" borderRadius="md" color="fg.DEFAULT">
                       <LuDoorOpen size={20} />
                     </Box>
                     <Box>
-                      <Text fontSize="xs" color="gray.500" fontWeight="bold" textTransform="uppercase">Espaço</Text>
-                      <Text fontWeight="medium" color="gray.800">{selectedEvent.resource?.room?.name}</Text>
+                      <Text fontSize="xs" color="fg.muted" fontWeight="bold" textTransform="uppercase">Espaço</Text>
+                      <Text fontWeight="medium" color="fg.DEFAULT">{selectedEvent.resource?.room?.name}</Text>
                     </Box>
                   </Flex>
 
-                  <Flex align="center" gap={3} color="gray.600">
-                    <Box p={2} bg="blue.50" borderRadius="md" color="blue.600">
+                  <Flex align="center" gap={3}>
+                    <Box p={2} bg="brand.900" borderRadius="md" color="brand.200">
                       <LuClock size={20} />
                     </Box>
                     <Box>
-                      <Text fontSize="xs" color="gray.500" fontWeight="bold" textTransform="uppercase">Horário</Text>
-                      <Text fontWeight="medium" color="gray.800">
+                      <Text fontSize="xs" color="fg.muted" fontWeight="bold" textTransform="uppercase">Horário</Text>
+                      <Text fontWeight="medium" color="fg.DEFAULT">
                         {format(selectedEvent.start, "dd 'de' MMMM, HH:mm", { locale: pt })} - {format(selectedEvent.end, "HH:mm")}
                       </Text>
                     </Box>
                   </Flex>
 
-                  <Flex align="center" gap={3} color="gray.600">
-                    <Box p={2} bg="purple.50" borderRadius="md" color="purple.600">
+                  <Flex align="center" gap={3}>
+                    <Box p={2} bg="whiteAlpha.200" borderRadius="md" color="fg.DEFAULT">
                       <LuUser size={20} />
                     </Box>
                     <Box>
-                      <Text fontSize="xs" color="gray.500" fontWeight="bold" textTransform="uppercase">Reservado por</Text>
-                      <Text fontWeight="medium" color="gray.800">
+                      <Text fontSize="xs" color="fg.muted" fontWeight="bold" textTransform="uppercase">Reservado por</Text>
+                      <Text fontWeight="medium" color="fg.DEFAULT">
                         {selectedEvent.resource?.user?.name || selectedEvent.resource?.user?.email || 'Usuário Desconhecido'}
                       </Text>
                     </Box>

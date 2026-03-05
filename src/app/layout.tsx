@@ -26,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             alignItems="center" 
             justifyContent="space-between" 
             gap={8}
+            color={'fg.DEFAULT'}
           >
             {/* Renderiza Navbar apenas se NÃO for a página de login */}
             {!isLoginPage && <Navbar />}

@@ -19,7 +19,7 @@ export default async function AdminLayout({
 
   // Se for ADMIN, renderiza a página normalmente
   return (
-    <Flex minH="100vh" bg="gray.50" w="100%">
+    <Flex minH="100vh" w="100%" color={'fg.DEFAULT'}>
       <Box 
         flex="1" 
         // Padding menor no celular para ganhar espaço

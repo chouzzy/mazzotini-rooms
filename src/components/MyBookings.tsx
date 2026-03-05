@@ -134,17 +134,17 @@ export default function MyBookings() {
 
   const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'CONFIRMED': return { color: 'green', label: 'Aprovada', borderColor: 'green.400' };
-      case 'REJECTED': return { color: 'red', label: 'Rejeitada', borderColor: 'red.400' };
-      case 'CANCELLED': return { color: 'gray', label: 'Cancelada', borderColor: 'gray.400' };
-      default: return { color: 'yellow', label: 'Aguardando Aprovação', borderColor: 'yellow.400' };
+      case 'CONFIRMED': return { color: 'green', label: 'Aprovada', borderColor: 'green.500' };
+      case 'REJECTED': return { color: 'red', label: 'Rejeitada', borderColor: 'red.500' };
+      case 'CANCELLED': return { color: 'gray', label: 'Cancelada', borderColor: 'gray.500' };
+      default: return { color: 'yellow', label: 'Aguardando Aprovação', borderColor: 'yellow.500' };
     }
   };
 
   return (
-    <Flex mt={6} mb={12} flexDir={'column'} w='100%' maxW='8xl' mx='auto' px={{ base: 4, md: 6 }}>
+    <Flex mb={12} flexDir={'column'} w='100%' maxW='8xl' mx='auto' px={{ base: 4, md: 6 }}>
       <Flex justify="space-between" align="center" mb={6}>
-        <Heading size={{ base: 'lg', md: 'xl' }} color="gray.800">
+        <Heading size={{ base: 'lg', md: 'xl' }} color="fg.DEFAULT">
           Meus Agendamentos
         </Heading>
         {/* Você pode adicionar um botão de "Nova Reserva" aqui que manda para /salas */}
@@ -152,14 +152,14 @@ export default function MyBookings() {
 
       {loading && (
         <Center py={20}>
-          <Spinner size="xl" color="blue.500" borderWidth="4px" />
+          <Spinner size="xl" color="brand.500" borderWidth="4px" />
         </Center>
       )}
 
       {!loading && isSearched && bookings.length === 0 && (
-        <Box textAlign="center" py={16} bg="white" borderRadius="xl" borderWidth="1px" borderStyle="dashed">
-          <Icon as={LuCalendarClock} fontSize="4xl" color="gray.300" mb={4} />
-          <Heading size="md" color="gray.600" mb={2}>Nenhum agendamento encontrado</Heading>
+        <Box textAlign="center" py={16} bg="bg.panel" borderRadius="xl" borderWidth="1px" borderColor="border.muted" borderStyle="dashed">
+          <Icon as={LuCalendarClock} fontSize="4xl" color="gray.500" mb={4} />
+          <Heading size="md" color="fg.DEFAULT" mb={2}>Nenhum agendamento encontrado</Heading>
           <Text color="fg.muted">Você ainda não solicitou nenhuma reserva de sala.</Text>
         </Box>
       )}
@@ -174,15 +174,16 @@ export default function MyBookings() {
           return (
             <Card.Root 
               key={booking.id} 
-              variant="elevated" 
+              variant="outline" 
               overflow="hidden"
               opacity={isInactive ? 0.6 : 1}
               transition="all 0.2s"
-              _hover={!isInactive ? { shadow: 'md', transform: 'translateY(-2px)' } : {}}
+              _hover={!isInactive ? { shadow: 'lg', transform: 'translateY(-2px)' } : {}}
               // Linha colorida na lateral esquerda indicando o status
               borderLeftWidth="4px"
               borderLeftColor={statusConfig.borderColor}
-              bg="white"
+              bg="bg.panel"
+              borderColor="brand.700"
             >
               <Card.Body p={{ base: 4, md: 6 }}>
                 <Flex 
@@ -194,10 +195,10 @@ export default function MyBookings() {
                   {/* INFORMAÇÕES DA RESERVA */}
                   <Stack gap={3} flex="1">
                     <Flex align="center" gap={3} wrap="wrap">
-                      <Heading size="md" color={isInactive ? "gray.500" : "gray.800"} textTransform={'capitalize'}>
+                      <Heading size="md" color={isInactive ? "gray.400" : "fg.DEFAULT"} textTransform={'capitalize'}>
                         {booking.title}
                       </Heading>
-                      <Badge colorPalette={statusConfig.color} size="sm" px={2} py={0.5}>
+                      <Badge colorPalette={statusConfig.color} size="sm" px={2} py={0.5} variant="subtle">
                         {statusConfig.label}
                       </Badge>
                     </Flex>
@@ -238,17 +239,17 @@ export default function MyBookings() {
                           size="sm"
                           flex="1"
                           bgGradient="to-r"
-                          gradientFrom="purple.600"
-                          gradientTo="blue.600"
+                          gradientFrom="brand.500"
+                          gradientTo="brand.700"
                           color="white"
-                          _hover={{ gradientFrom: "purple.700", gradientTo: "blue.700" }}
+                          _hover={{ gradientFrom: "brand.400", gradientTo: "brand.600" }}
                         >
                           <LuVideo /> Ingressar (Teams)
                         </Button>
                         <IconButton 
                           size="sm" 
                           variant="outline" 
-                          colorPalette="purple"
+                          colorPalette="brand"
                           aria-label="Copiar Link"
                           onClick={() => copyToClipboard(booking.onlineMeetingUrl!)}
                         >
@@ -262,7 +263,7 @@ export default function MyBookings() {
                       <Button 
                         size="sm" 
                         colorPalette="red" 
-                        variant="ghost"
+                        variant="solid"
                         loading={cancelingId === booking.id}
                         onClick={() => setIdToConfirm(booking.id)}
                         w={{ base: 'full', md: 'auto' }}
@@ -279,31 +280,31 @@ export default function MyBookings() {
         })}
       </Flex>
 
-      {/* Dialog de Confirmação Modernizado */}
+      {/* Dialog de Confirmação Modernizado e Adaptado para Dark Mode */}
       <Dialog.Root 
         open={!!idToConfirm} 
         onOpenChange={(e) => !e.open && setIdToConfirm(null)}
       >
         <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(2px)" />
         <Dialog.Positioner>
-          <Dialog.Content borderRadius="xl" shadow="2xl">
+          <Dialog.Content borderRadius="xl" shadow="2xl" bg="bg.panel">
             <Dialog.Header>
               <Flex align="center" gap={3}>
-                <Box p={2} bg="red.50" color="red.500" borderRadius="full">
+                <Box p={2} bg="red.900" color="red.200" borderRadius="full">
                   <LuBadgeAlert size={24} />
                 </Box>
-                <Dialog.Title fontSize="lg">Cancelar Reserva</Dialog.Title>
+                <Dialog.Title fontSize="lg" color="fg.DEFAULT">Cancelar Reserva</Dialog.Title>
               </Flex>
             </Dialog.Header>
             
             <Dialog.Body pt={4} pb={6}>
-              <Text color="gray.600">
+              <Text color="fg.muted">
                 Tem a certeza que deseja cancelar este agendamento? A sala será libertada imediatamente para outros colaboradores. Esta ação não pode ser desfeita.
               </Text>
             </Dialog.Body>
             
-            <Dialog.Footer bg="gray.50" borderBottomRadius="xl">
-              <Button variant="ghost" onClick={() => setIdToConfirm(null)}>
+            <Dialog.Footer bg="whiteAlpha.50" borderBottomRadius="xl" borderTopWidth="1px" borderColor="border.muted">
+              <Button variant="ghost" color="fg.muted" onClick={() => setIdToConfirm(null)}>
                 Manter Reserva
               </Button>
               <Button colorPalette="red" onClick={handleConfirmCancel}>

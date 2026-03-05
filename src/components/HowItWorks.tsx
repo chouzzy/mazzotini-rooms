@@ -64,9 +64,9 @@ export default function HowItWorks() {
                             p={8}
                             borderRadius="2xl"
                             transition="all 0.3s ease"
-                            _hover={{ transform: 'translateY(-8px)', shadow: '2xl', borderColor: 'purple.400', bg: 'whiteAlpha.200' }}
+                            _hover={{ transform: 'translateY(-8px)', shadow: '2xl', borderColor: 'brand.400', bg: 'whiteAlpha.200' }}
                         >
-                            <Box p={4} bg="whiteAlpha.800" color="purple.600" borderRadius="2xl" mb={6} shadow="inner">
+                            <Box p={4} bg="whiteAlpha.800" color="brand.600" borderRadius="2xl" mb={6} shadow="inner">
                                 <Icon as={ClockAfternoonIcon} fontSize="5xl" />
                             </Box>
                             <Heading size="lg" mb={3} color="white">2. Defina o Horário</Heading>

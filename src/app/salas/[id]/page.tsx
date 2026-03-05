@@ -122,7 +122,8 @@ export default function RoomDetailsPage() {
             objectFit="cover" 
           />
         ) : (
-          <Center h="full" bg="gray.200" color="gray.500">
+          <Center h="full" bg="gray.600" color="gray.100" flexDir="column" gap={4}>
+            <LuMonitor size={64} opacity={0.5} />
             Sem imagem disponível
           </Center>
         )}
@@ -144,7 +145,7 @@ export default function RoomDetailsPage() {
         <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={8}>
           
           {/* Coluna Principal: Detalhes */}
-          <Card.Root shadow="lg" borderRadius="xl" bg="white" overflow="hidden">
+          <Card.Root shadow="lg" borderRadius="xl" bg="gray.800" overflow="hidden">
             <Card.Body p={{ base: 6, md: 8 }}>
               <Flex justify="space-between" align="start" mb={4}>
                 <Box>
@@ -201,7 +202,7 @@ export default function RoomDetailsPage() {
           {/* Coluna Lateral: Ação de Reserva */}
           <Box>
             <Card.Root shadow="md" position="sticky" top="100px">
-              <Card.Header bg="bg.subtle" borderBottomWidth="1px">
+              <Card.Header bg="bg.subtle" borderBottomWidth="1px" p={4}>
                 <Heading size="md">Agendar Horário</Heading>
               </Card.Header>
               <Card.Body>
@@ -210,8 +211,8 @@ export default function RoomDetailsPage() {
                     Garanta este espaço para sua reunião. Verifique a disponibilidade e reserve instantaneamente.
                   </Text>
                   
-                  <Box p={4} bg="blue.50" borderRadius="md" borderLeftWidth="4px" borderColor="blue.500">
-                    <Text fontSize="sm" color="blue.700" fontWeight="medium">
+                  <Box p={4} bg="gray.700" borderRadius="md" borderLeftWidth="4px" borderColor="gray.500">
+                    <Text fontSize="sm" color="gray.50" fontWeight="medium">
                       🚀 Integração Microsoft Teams disponível nesta sala.
                     </Text>
                   </Box>
