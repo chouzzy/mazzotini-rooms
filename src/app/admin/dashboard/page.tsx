@@ -143,6 +143,16 @@ export default function AdminDashboardPage() {
       return;
     }
 
+    // NOVA VALIDAÇÃO: Bloqueando a viagem no tempo! ⚡🚗
+    if (new Date(rescheduleData.endTime) <= new Date(rescheduleData.startTime)) {
+      toaster.create({ 
+        title: 'Horário Inválido', 
+        description: 'O horário de término deve ser posterior ao horário de início. Ainda é impossível viajar de volta para o passado! 😅⏰🚫', 
+        type: 'error' 
+      });
+      return;
+    }
+
     setProcessingId(bookingToReschedule.id);
     try {
       const res = await fetch(`/api/bookings`, {
@@ -413,10 +423,26 @@ export default function AdminDashboardPage() {
                 {currentList.map((booking) => {
                   const urgency = activeTab === 'PENDING' ? getUrgency(booking.startTime) : null;
 
+                  // LÓGICA DE DETECÇÃO DE CONFLITO PARA USUÁRIOS VIP
+                  // Verifica se esta reserva bate com os horários de reservas já aprovadas na mesma sala
+                  const conflicts = activeTab === 'PENDING' 
+                    ? confirmedBookings.filter(cb => 
+                        cb.roomId === booking.roomId && 
+                        new Date(cb.startTime) < new Date(booking.endTime) && 
+                        new Date(cb.endTime) > new Date(booking.startTime)
+                      )
+                    : [];
+                  
+                  const hasConflict = conflicts.length > 0;
+
                   return (
-                    <Table.Row key={booking.id}>
+                    <Table.Row 
+                      key={booking.id}
+                      bg={hasConflict ? 'red.900/20' : 'transparent'} // Fundo avermelhado bem sutil para o conflito
+                      transition="background-color 0.3s"
+                    >
                       <Table.Cell>
-                        <Text fontWeight="bold" color="fg.DEFAULT" whiteSpace="nowrap">{booking.title}</Text>
+                        <Text fontWeight="bold" color={hasConflict ? "red.300" : "fg.DEFAULT"} whiteSpace="nowrap">{booking.title}</Text>
                         <Text fontSize="sm" color="fg.muted" whiteSpace="nowrap">{booking.room.name}</Text>
                       </Table.Cell>
                       <Table.Cell>
@@ -434,13 +460,21 @@ export default function AdminDashboardPage() {
                         {/* AÇÕES DA ABA PENDENTE */}
                         {activeTab === 'PENDING' && (
                           <Flex direction="column" align="flex-end" gap={2}>
-                            {urgency && (
+                            {urgency && !hasConflict && (
                               <Badge colorPalette={urgency.color} size="sm" variant="solid">
                                 <LuTimer style={{ marginRight: '4px' }} /> {urgency.text}
                               </Badge>
                             )}
+                            
                             <Stack direction="row" gap={2} mt={1}>
-                              <Button size="xs" colorPalette="green" onClick={() => handleUpdateStatus(booking.id, 'CONFIRMED')} loading={processingId === booking.id}>
+                              {/* Botão Aprovar: Fica desativado se houver conflito! */}
+                              <Button 
+                                size="xs" 
+                                colorPalette="green" 
+                                onClick={() => handleUpdateStatus(booking.id, 'CONFIRMED')} 
+                                loading={processingId === booking.id}
+                                disabled={hasConflict}
+                              >
                                 <LuCheck /> Aprovar
                               </Button>
                               <Button size="xs" colorPalette="cyan" variant="solid" onClick={() => handleOpenReschedule(booking)}>
@@ -450,6 +484,32 @@ export default function AdminDashboardPage() {
                                 <LuX /> Rejeitar
                               </Button>
                             </Stack>
+
+                            {/* O ALERTA INTELIGENTE DE CONFLITO */}
+                            {hasConflict && (
+                              <Box mt={3} p={3} bg="red.950" borderRadius="md" borderWidth="1px" borderColor="red.800" textAlign="left" w="100%" maxW="350px">
+                                <Text fontSize="xs" color="red.200" fontWeight="bold" mb={1}>
+                                  ⚠️ Requer Remanejamento Prévio
+                                </Text>
+                                <Text fontSize="xs" color="red.100" mb={3} lineHeight="shorter" opacity={0.8}>
+                                  Esta solicitação colide com horários já aprovados nesta sala. Remaneje as reservas abaixo primeiro:
+                                </Text>
+                                <Stack gap={2}>
+                                  {conflicts.map(c => (
+                                    <Flex key={c.id} justify="space-between" align="center" bg="blackAlpha.400" p={2} borderRadius="md" borderWidth="1px" borderColor="red.900">
+                                      <Box flex="1" overflow="hidden" mr={2}>
+                                        <Text fontSize="xs" color="white" fontWeight="medium" lineClamp={1}>{c.title}</Text>
+                                        <Text fontSize="2xs" color="whiteAlpha.700" lineClamp={1}>{c.user.name}</Text>
+                                      </Box>
+                                      {/* Usando o mesmo cyan dos seus botões */}
+                                      <Button size="xs" colorPalette="cyan" variant="solid" onClick={() => handleOpenReschedule(c)}>
+                                        Remanejar
+                                      </Button>
+                                    </Flex>
+                                  ))}
+                                </Stack>
+                              </Box>
+                            )}
                           </Flex>
                         )}
 
@@ -553,7 +613,7 @@ export default function AdminDashboardPage() {
             </Dialog.Body>
             
             <Dialog.Footer bg="whiteAlpha.50" borderTopWidth="1px" borderColor="border.muted" borderBottomRadius="xl">
-              <Button variant="solid" color="fg.muted" onClick={() => setIsRescheduleOpen(false)}>Cancelar</Button>
+              <Button variant="solid" onClick={() => setIsRescheduleOpen(false)}>Cancelar</Button>
               <Button colorPalette="blue" onClick={submitReschedule} loading={!!processingId}>
                 Salvar Alterações
               </Button>

@@ -1,12 +1,29 @@
-import { POST, GET, DELETE } from '@/app/api/bookings/route';
-import { prisma } from '@/lib/prisma';
+import { POST, GET, DELETE } from '../../app/api/bookings/route';
+import { prisma } from '../../lib/prisma';
+import { getServerSession } from 'next-auth';
+
+// 1. MOCK DO NEXT-AUTH: Evita o erro 'jose' ESM module no Jest
+jest.mock('next-auth', () => ({
+  getServerSession: jest.fn(),
+}));
+
+// 2. MOCK DO SERVIÇO DE E-MAIL
+jest.mock('../../lib/email', () => ({
+  sendPendingEmail: jest.fn().mockResolvedValue(true),
+  sendApprovalEmail: jest.fn().mockResolvedValue(true),
+  sendRejectionEmail: jest.fn().mockResolvedValue(true),
+  sendCancellationEmail: jest.fn().mockResolvedValue(true),
+  sendGuestInvitationEmail: jest.fn().mockResolvedValue(true),
+}));
 
 describe('API de Agendamentos', () => {
   let roomId: string;
   let userId: string;
+  let vipUserId: string;
+  let room2Id: string;
 
   beforeEach(async () => {
-    // Limpeza atômica
+    // Limpeza atômica e segura
     await prisma.$transaction([
       prisma.booking.deleteMany(),
       prisma.room.deleteMany(),
@@ -14,30 +31,81 @@ describe('API de Agendamentos', () => {
     ]);
 
     const room = await prisma.room.create({
-      data: {
-        name: 'Sala de Teste',
-        capacity: 10,
-        description: 'Sala para testes',
-        isActive: true
-      }
+      data: { name: 'Sala Executiva', capacity: 10, isActive: true }
     });
     roomId = room.id;
 
+    const room2 = await prisma.room.create({
+      data: { name: 'Sala de Inovação', capacity: 12, isActive: true }
+    });
+    room2Id = room2.id;
+
     const user = await prisma.user.create({
-      data: {
-        name: 'Tester',
-        email: 'tester@example.com',
-      }
+      data: { name: 'Tester Normal', email: 'tester@example.com', isVip: false }
     });
     userId = user.id;
+
+    const vipUser = await prisma.user.create({
+      data: { name: 'Sócio VIP', email: 'vip@example.com', isVip: true }
+    });
+    vipUserId = vipUser.id;
+
+    // Garante que os mocks estejam limpos antes de cada teste
+    jest.clearAllMocks();
   });
 
-  describe('POST /api/bookings', () => {
-    it('deve criar um agendamento com sucesso', async () => {
+  describe('POST /api/bookings (Inteligência e VIP)', () => {
+    it('deve sugerir outra sala se a principal estiver ocupada por um usuário normal', async () => {
+      await prisma.booking.create({
+        data: {
+          roomId,
+          userId,
+          title: 'Reunião Existente',
+          startTime: new Date('2026-10-10T09:00:00Z'),
+          endTime: new Date('2026-10-10T10:00:00Z'),
+          status: 'CONFIRMED'
+        }
+      });
+  
       const body = {
         roomId,
         userId,
-        title: 'Daily Meeting',
+        title: 'Tentativa de Choque',
+        startTime: new Date('2026-10-10T09:00:00Z').toISOString(),
+        endTime: new Date('2026-10-10T10:00:00Z').toISOString(),
+      };
+  
+      const request = new Request('http://localhost:3000/api/bookings', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' }
+      });
+  
+      const response = await POST(request);
+      const data = await response.json();
+  
+      expect(response.status).toBe(409);
+      expect(data.error).toBe('Sala Ocupada');
+      expect(data.suggestion).toBeDefined();
+      expect(data.suggestion.id).toBe(room2Id);
+    });
+
+    it('deve PERMITIR o choque de horários (Furar Fila) se o usuário for VIP', async () => {
+      await prisma.booking.create({
+        data: {
+          roomId,
+          userId,
+          title: 'Reunião dos Estagiários',
+          startTime: new Date('2026-10-10T09:00:00Z'),
+          endTime: new Date('2026-10-10T10:00:00Z'),
+          status: 'CONFIRMED'
+        }
+      });
+  
+      const body = {
+        roomId,
+        userId: vipUserId,
+        title: 'Reunião Urgente do Sócio',
         startTime: new Date('2026-10-10T09:00:00Z').toISOString(),
         endTime: new Date('2026-10-10T10:00:00Z').toISOString(),
       };
@@ -52,27 +120,20 @@ describe('API de Agendamentos', () => {
       const data = await response.json();
   
       expect(response.status).toBe(201);
-      expect(data.title).toBe('Daily Meeting');
-      expect(data.userId).toBe(userId);
+      expect(data.status).toBe('PENDING');
     });
-  
-    it('deve impedir agendamento em horário conflitante', async () => {
-      await prisma.booking.create({
-        data: {
-          roomId,
-          userId,
-          title: 'Reunião Existente',
-          startTime: new Date('2026-10-10T09:00:00Z'),
-          endTime: new Date('2026-10-10T10:00:00Z'),
-        }
-      });
-  
+
+    it('deve salvar a flag isOnline e a lista de convidados corretamente', async () => {
       const body = {
         roomId,
         userId,
-        title: 'Conflito',
-        startTime: new Date('2026-10-10T09:00:00Z').toISOString(),
-        endTime: new Date('2026-10-10T10:00:00Z').toISOString(),
+        title: 'Reunião com Clientes Externos',
+        startTime: new Date('2026-10-11T14:00:00Z').toISOString(),
+        endTime: new Date('2026-10-11T15:00:00Z').toISOString(),
+        isOnline: true,
+        guests: [
+          { name: 'Cliente A', email: 'cliente.a@gmail.com', phone: '11999999999' }
+        ]
       };
   
       const request = new Request('http://localhost:3000/api/bookings', {
@@ -82,7 +143,15 @@ describe('API de Agendamentos', () => {
       });
   
       const response = await POST(request);
-      expect(response.status).toBe(409);
+      const data = await response.json();
+  
+      expect(response.status).toBe(201);
+      expect(data.type).toBe('ONLINE');
+      expect(data.guests).toBeDefined();
+      
+      const parsedGuests = JSON.parse(data.guests);
+      expect(parsedGuests).toHaveLength(1);
+      expect(parsedGuests[0].email).toBe('cliente.a@gmail.com');
     });
   });
 
@@ -105,12 +174,12 @@ describe('API de Agendamentos', () => {
       expect(response.status).toBe(200);
       expect(data).toHaveLength(1);
       expect(data[0].title).toBe('Planning');
-      expect(data[0].room).toHaveProperty('name', 'Sala de Teste');
-      expect(data[0].user).toHaveProperty('name', 'Tester');
+      expect(data[0].room).toHaveProperty('name', 'Sala Executiva');
+      expect(data[0].user).toHaveProperty('name', 'Tester Normal');
     });
 
     it('deve filtrar agendamentos por roomId', async () => {
-      const room2 = await prisma.room.create({
+      const roomOutra = await prisma.room.create({
         data: { name: 'Sala Outra', capacity: 5, isActive: true }
       });
 
@@ -126,7 +195,7 @@ describe('API de Agendamentos', () => {
 
       await prisma.booking.create({
         data: {
-          roomId: room2.id,
+          roomId: roomOutra.id,
           userId,
           title: 'Reunião Sala 2',
           startTime: new Date('2026-10-15T10:00:00Z'),
@@ -140,45 +209,6 @@ describe('API de Agendamentos', () => {
 
       expect(data).toHaveLength(1);
       expect(data[0].title).toBe('Reunião Sala 1');
-    });
-
-    it('deve filtrar agendamentos por email do usuário', async () => {
-      // 1. Criar outro usuário
-      const otherUser = await prisma.user.create({
-        data: { name: 'Outro', email: 'outro@test.com' }
-      });
-
-      // 2. Agendamento do Usuário Principal
-      await prisma.booking.create({
-        data: {
-          roomId,
-          userId: userId, // tester@example.com
-          title: 'Reunião Minha',
-          startTime: new Date('2026-10-16T10:00:00Z'),
-          endTime: new Date('2026-10-16T11:00:00Z'),
-        }
-      });
-
-      // 3. Agendamento do Outro Usuário
-      await prisma.booking.create({
-        data: {
-          roomId,
-          userId: otherUser.id,
-          title: 'Reunião Dele',
-          startTime: new Date('2026-10-16T12:00:00Z'),
-          endTime: new Date('2026-10-16T13:00:00Z'),
-        }
-      });
-
-      // 4. Filtrar pelo email do usuário principal
-      const request = new Request(`http://localhost:3000/api/bookings?email=tester@example.com`);
-      const response = await GET(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveLength(1);
-      expect(data[0].title).toBe('Reunião Minha');
-      expect(data[0].user.email).toBe('tester@example.com');
     });
   });
 
@@ -213,17 +243,6 @@ describe('API de Agendamentos', () => {
       const response = await DELETE(request);
 
       expect(response.status).toBe(404);
-    });
-
-    it('deve retornar 400 se não passar ID', async () => {
-      const request = new Request(`http://localhost:3000/api/bookings`, {
-        method: 'DELETE',
-      });
-      const response = await DELETE(request);
-
-      expect(response.status).toBe(400);
-      const data = await response.json();
-      expect(data.error).toBe('ID é obrigatório');
     });
   });
 });

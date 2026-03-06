@@ -6,7 +6,7 @@ import {
   Flex, Box, IconButton, Alert
 } from '@chakra-ui/react';
 import { toaster } from '@/components/ui/toaster';
-import { useSession } from 'next-auth/react'; 
+import { useSession } from 'next-auth/react';
 
 interface Room {
   id: string;
@@ -26,13 +26,13 @@ interface BookingModalProps {
 
 export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess }: BookingModalProps) {
   const [loading, setLoading] = useState(false);
-  const { data: session } = useSession(); 
-  
+  const { data: session } = useSession();
+
   const [title, setTitle] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [isOnline, setIsOnline] = useState(false);
-  const [guests, setGuests] = useState<{name: string, email: string, phone: string}[]>([]);
+  const [guests, setGuests] = useState<{ name: string, email: string, phone: string }[]>([]);
   const [minDateTime, setMinDateTime] = useState('');
 
   // ESTADO DA SUGESTÃO DE SALA
@@ -42,9 +42,9 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
     const now = new Date();
     const hour = now.getHours();
     const isBusinessHours = hour >= 8 && hour < 18;
-    
+
     let minDate = new Date(now);
-    if (isBusinessHours) { minDate.setHours(now.getHours() + 4); } 
+    if (isBusinessHours) { minDate.setHours(now.getHours() + 4); }
     else {
       if (hour >= 18) { minDate.setDate(now.getDate() + 1); }
       minDate.setHours(10, 30, 0, 0);
@@ -92,10 +92,19 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
   const handleSubmit = async (overrideRoomId?: string) => {
     const targetRoomId = overrideRoomId || selectedRoom?.id;
     if (!targetRoomId) return;
-    
+
     if (!title || !startTime || !endTime) return toaster.create({ title: 'Preencha os campos', type: 'warning' });
     if (new Date(endTime) <= new Date(startTime)) return toaster.create({ title: 'A hora de término deve ser após o início', type: 'error' });
     if (!session || !session.user || !session.user.id) return toaster.create({ title: 'Você precisa estar logado', type: 'error' });
+
+    // 🛡️ NOVA VALIDAÇÃO DE FRONTEND: Bloqueia quem tentar digitar no teclado burlando o calendário
+    if (new Date(startTime) < new Date(minDateTime)) {
+      return toaster.create({
+        title: 'Antecedência Mínima',
+        description: 'O agendamento exige no mínimo 4h de antecedência (ou a partir das 10h30 do dia seguinte).',
+        type: 'error'
+      });
+    }
 
     setLoading(true);
     setSuggestion(null); // Limpa sugestão anterior
@@ -117,11 +126,11 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
 
       if (!bookingRes.ok) {
         const errorData = await bookingRes.json();
-        
+
         // CAPTURA A SUGESTÃO DE OTIMIZAÇÃO (STATUS 409)
         if (bookingRes.status === 409 && errorData.suggestion) {
-           setSuggestion(errorData.suggestion);
-           return; // Para aqui e mostra a sugestão no frontend
+          setSuggestion(errorData.suggestion);
+          return; // Para aqui e mostra a sugestão no frontend
         }
         throw new Error(errorData.error || 'Erro ao agendar sala');
       }
@@ -146,21 +155,21 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
             <Dialog.Title>Reservar {selectedRoom?.name}</Dialog.Title>
           </Dialog.Header>
           <Dialog.CloseTrigger />
-          
+
           <Dialog.Body pb={6}>
             <Stack gap={4}>
-              
+
               {/* ALERTA INTELIGENTE DE OTIMIZAÇÃO DE SALA */}
               {suggestion && (
-                <Alert.Root status="info" variant="subtle" borderWidth="1px" borderRadius="md" borderColor="blue.200">
-                  <Alert.Indicator />
-                  <Box w="full">
+                <Alert.Root colorPalette={'orange'} status="info" variant="subtle" borderWidth="1px" borderRadius="md" borderColor="orange.200">
+                  <Alert.Indicator my={'auto'}/>
+                  <Box w="full" p={2}>
                     <Alert.Title>Horário Indisponível nesta sala!</Alert.Title>
-                    <Alert.Description fontSize="sm" mt={1}>
+                    <Alert.Description fontSize="sm" mt={1} >
                       Mas encontramos a <strong>{suggestion.name}</strong> livre neste horário. Ela possui capacidade para {suggestion.capacity} pessoas.
                     </Alert.Description>
-                    <Button 
-                      mt={3} size="sm" colorPalette="blue" w="full"
+                    <Button
+                      mt={3} size="sm" colorPalette="cyan" w="full"
                       onClick={() => handleSubmit(suggestion.id)}
                       loading={loading}
                     >
@@ -201,7 +210,7 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
               </Field.Root>
 
               {/* CONVIDADOS */}
-              <Box mt={2} p={4} bg="gray.50" borderRadius="md" borderWidth="1px">
+              <Box mt={2} p={4} bg="gray.900" borderRadius="md" borderWidth="1px">
                 <Flex justify="space-between" align="center" mb={3}>
                   <Text fontWeight="medium" fontSize="sm">Convidados Externos (Opcional)</Text>
                   <Button size="xs" variant="outline" colorPalette="blue" onClick={handleAddGuest}>+ Adicionar</Button>
@@ -209,7 +218,7 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
                 <Stack gap={3}>
                   {guests.length === 0 && <Text fontSize="xs" color="fg.muted">Nenhum convidado adicionado.</Text>}
                   {guests.map((guest, index) => (
-                    <Flex key={index} gap={2} align="center" wrap={{ base: 'wrap', sm: 'nowrap' }} p={3} bg="white" borderWidth="1px" borderRadius="md">
+                    <Flex key={index} gap={2} align="center" wrap={{ base: 'wrap', sm: 'nowrap' }} p={3} bg="gray.800" borderWidth="1px" borderRadius="md">
                       <Input flex={{ base: '100%', sm: 1 }} minW="150px" size="sm" placeholder="Nome Completo" value={guest.name} onChange={(e) => handleGuestChange(index, 'name', e.target.value)} />
                       <Input flex={{ base: '100%', sm: 1 }} minW="180px" size="sm" type="email" placeholder="E-mail (ex: joao@gmail.com)" value={guest.email} onChange={(e) => handleGuestChange(index, 'email', e.target.value)} />
                       <Input flex={{ base: '100%', sm: 1 }} minW="140px" size="sm" type="tel" placeholder="(11) 99999-9999" value={guest.phone} onChange={(e) => handleGuestChange(index, 'phone', e.target.value)} />
@@ -222,7 +231,7 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
             </Stack>
           </Dialog.Body>
 
-          <Dialog.Footer bg="gray.50" borderBottomRadius="xl">
+          <Dialog.Footer bg="gray.900" borderBottomRadius="xl">
             <Button variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
             <Button colorPalette="blue" onClick={() => handleSubmit()} loading={loading}>
               Confirmar Solicitação

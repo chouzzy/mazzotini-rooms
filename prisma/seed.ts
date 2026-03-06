@@ -1,11 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role, MeetingType, BookingStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Iniciando o seed COMPLETO do banco de dados...');
+  console.log('🌱 Iniciando o seed PREMIUM do banco de dados...');
 
-  // 1. LIMPEZA (Ordem importa por causa das relações)
+  // 1. LIMPEZA ATÔMICA
   await prisma.booking.deleteMany();
   await prisma.room.deleteMany();
   await prisma.user.deleteMany();
@@ -13,71 +13,96 @@ async function main() {
   console.log('🧹 Banco limpo.');
 
   // 2. CRIAR USUÁRIOS
-  const usersData = [
-    { name: 'Admin System', email: 'admin@mazzotini.com' },
-    { name: 'João Silva', email: 'joao.silva@empresa.com' },
-    { name: 'Maria Oliveira', email: 'maria.oliveira@empresa.com' },
-    { name: 'Carlos Santos', email: 'carlos.santos@empresa.com' },
-    { name: 'Ana Souza', email: 'ana.souza@empresa.com' },
-  ];
+  const admin = await prisma.user.create({
+    data: { 
+      name: 'Admin Mazzotini', 
+      email: 'admin@mazzotini.com',
+      role: Role.ADMIN,
+      isVip: true,
+      image: 'https://ui-avatars.com/api/?name=Admin+Mazzotini&background=c7823c&color=fff'
+    }
+  });
 
-  const users = [];
-  for (const u of usersData) {
-    const user = await prisma.user.create({ data: u });
-    users.push(user);
-  }
-  console.log(`✅ ${users.length} Usuários criados.`);
+  const vipUser = await prisma.user.create({
+    data: { 
+      name: 'Dr. Roberto Sócio', 
+      email: 'roberto@mazzotini.com',
+      role: Role.USER,
+      isVip: true,
+      image: 'https://ui-avatars.com/api/?name=Roberto+Socio&background=b16a31&color=fff'
+    }
+  });
 
-  // 3. CRIAR SALAS
+  const normalUser1 = await prisma.user.create({
+    data: { 
+      name: 'Ana Associada', 
+      email: 'ana@mazzotini.com',
+      role: Role.USER,
+      isVip: false,
+      image: 'https://ui-avatars.com/api/?name=Ana+Associada&background=334155&color=fff'
+    }
+  });
+
+  const normalUser2 = await prisma.user.create({
+    data: { 
+      name: 'Carlos Estagiário', 
+      email: 'carlos@mazzotini.com',
+      role: Role.USER,
+      isVip: false,
+    }
+  });
+
+  console.log(`✅ Usuários criados (Admin, VIP e Associados).`);
+
+  // 3. CRIAR SALAS PREMIUM
   const roomsData = [
     {
       name: 'Sala Executiva (Boardroom)',
       capacity: 12,
-      description: 'Mesa de mármore, cadeiras de couro, TV 4K de 75" e sistema de videoconferência dedicado.',
+      description: 'Mesa de mármore para 12 lugares, cadeiras ergonômicas de couro, TV 4K de 75", sistema de videoconferência dedicado e vista para a cidade. Ideal para reuniões com clientes importantes e fechamento de contratos.',
       isActive: true,
-      imageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1000',
+      imageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200',
+      amenities: ['Wi-Fi de alta velocidade', 'TV / Projetor HDMI', 'Videoconferência', 'Água e Café']
     },
     {
       name: 'Sala de Inovação',
-      capacity: 8,
-      description: 'Ambiente descontraído com paredes riscáveis, post-its, pufes e iluminação natural.',
+      capacity: 6,
+      description: 'Ambiente descontraído e criativo. Possui parede de vidro riscável para brainstormings, TV para apresentações rápidas e iluminação natural. Perfeita para reuniões internas e alinhamentos de equipe.',
       isActive: true,
-      imageUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=1000',
+      imageUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=1200',
+      amenities: ['Wi-Fi de alta velocidade', 'TV / Projetor HDMI', 'Quadro Branco']
+    },
+    {
+      name: 'Cabine de Foco A',
+      capacity: 2,
+      description: 'Cabine com tratamento acústico premium para chamadas confidenciais ou trabalho focado que exija silêncio absoluto. Acomoda até 2 pessoas para conversas rápidas.',
+      isActive: true,
+      imageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&q=80&w=1200',
+      amenities: ['Wi-Fi de alta velocidade']
+    },
+    {
+      name: 'Cabine de Foco B',
+      capacity: 1,
+      description: 'Cabine individual insonorizada. Ideal para participar de audiências online e sustentações orais sem interrupções externas.',
+      isActive: true,
+      imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=1200',
+      amenities: ['Wi-Fi de alta velocidade']
     },
     {
       name: 'Auditório Principal',
-      capacity: 50,
-      description: 'Espaço para town-halls e treinamentos. Possui sistema de som, microfones e projetor duplo.',
+      capacity: 40,
+      description: 'Espaço modular para treinamentos, palestras e town-halls. Equipado com sistema de som completo, microfones sem fio e telão HD.',
       isActive: true,
-      imageUrl: 'https://images.unsplash.com/photo-1517502884422-41e157d44305?auto=format&fit=crop&q=80&w=1000',
+      imageUrl: 'https://images.unsplash.com/photo-1517502884422-41e157d44305?auto=format&fit=crop&q=80&w=1200',
+      amenities: ['Wi-Fi de alta velocidade', 'TV / Projetor HDMI', 'Acessibilidade', 'Água e Café']
     },
     {
-      name: 'Cabine Foco A',
-      capacity: 1,
-      description: 'Cabine acústica para chamadas privadas e trabalho concentrado.',
-      isActive: true,
-      imageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&q=80&w=1000',
-    },
-    {
-      name: 'Cabine Foco B',
-      capacity: 1,
-      description: 'Cabine acústica para chamadas privadas e trabalho concentrado.',
-      isActive: true,
-      imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=1000',
-    },
-    {
-      name: 'Sala de Reunião 101',
-      capacity: 4,
-      description: 'Sala básica para alinhamentos rápidos. Possui monitor HDMI.',
-      isActive: true,
-      imageUrl: 'https://images.unsplash.com/photo-1577412647305-991150c7d163?auto=format&fit=crop&q=80&w=1000',
-    },
-    {
-      name: 'Sala de Manutenção',
-      capacity: 4,
-      description: 'Em reforma (pintura). Indisponível para reservas.',
-      isActive: false,
-      imageUrl: 'https://images.unsplash.com/photo-1504384308090-c54be3855833?auto=format&fit=crop&q=80&w=1000',
+      name: 'Sala de Mediação',
+      capacity: 5,
+      description: 'Sala em reforma para troca de mobiliário e instalação de novo carpete acústico.',
+      isActive: false, // Inativa para testar a flag no frontend
+      imageUrl: 'https://images.unsplash.com/photo-1504384308090-c54be3855833?auto=format&fit=crop&q=80&w=1200',
+      amenities: []
     },
   ];
 
@@ -86,101 +111,115 @@ async function main() {
     const room = await prisma.room.create({ data: r });
     rooms.push(room);
   }
-  console.log(`✅ ${rooms.length} Salas criadas.`);
+  console.log(`✅ ${rooms.length} Salas Premium criadas.`);
 
-  // 4. CRIAR AGENDAMENTOS (Distribuição Temporal)
+  // 4. CRIAR AGENDAMENTOS (Distribuição Temporal Estratégica)
   const today = new Date();
   
-  // Helper para ajustar datas rapidamente
-  const addHours = (date: Date, h: number) => new Date(date.getTime() + h * 60 * 60 * 1000);
-  const addDays = (date: Date, d: number) => {
-    const newDate = new Date(date);
-    newDate.setDate(date.getDate() + d);
-    return newDate;
+  // Helpers para simular horários
+  const setTime = (hours: number, minutes: number = 0) => {
+    const d = new Date(today);
+    d.setHours(hours, minutes, 0, 0);
+    return d;
+  };
+  const addDays = (date: Date, days: number) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
   };
 
-  // Base de horário: Hoje às 08:00
-  const baseTime = new Date(today.setHours(8, 0, 0, 0));
-
   const bookingsData = [
-    // --- HOJE ---
+    // --- HISTÓRICO (Realizadas no Passado) ---
     {
-      title: 'Daily Scrum - Tech Team',
-      start: baseTime, // 08:00
-      end: addHours(baseTime, 0.5), // 08:30
-      room: rooms[1], // Inovação
-      user: users[1], // João
-      link: 'https://teams.microsoft.com/l/meetup-join/fake-1',
-    },
-    {
-      title: 'Alinhamento Comercial',
-      start: addHours(baseTime, 2), // 10:00
-      end: addHours(baseTime, 3),   // 11:00
-      room: rooms[0], // Executiva
-      user: users[2], // Maria
-      link: null,
-    },
-    {
-      title: 'Entrevista Candidato Dev',
-      start: addHours(baseTime, 6), // 14:00
-      end: addHours(baseTime, 7),   // 15:00
-      room: rooms[5], // 101
-      user: users[3], // Carlos
-      link: 'https://teams.microsoft.com/l/meetup-join/fake-2',
-    },
-    {
-      title: 'Workshop de Design Thinking',
-      start: addHours(baseTime, 5), // 13:00
-      end: addHours(baseTime, 9),   // 17:00 (4h duração)
-      room: rooms[1], // Inovação
-      user: users[4], // Ana
-      link: null,
+      title: 'Reunião de Fechamento (Mês Passado)',
+      start: addDays(setTime(14, 0), -5),
+      end: addDays(setTime(16, 0), -5),
+      roomId: rooms[0].id,
+      userId: admin.id,
+      status: BookingStatus.CONFIRMED,
+      type: MeetingType.IN_PERSON,
     },
 
-    // --- ONTEM (Passado) ---
+    // --- HOJE (Realizadas / Em Andamento / Pendentes) ---
     {
-      title: 'Reunião Mensal de Resultados',
-      start: addDays(baseTime, -1), // Ontem 08:00
-      end: addHours(addDays(baseTime, -1), 2), // Ontem 10:00
-      room: rooms[2], // Auditório
-      user: users[0], // Admin
-      link: null,
+      title: 'Despacho com Cliente A',
+      start: setTime(9, 0),
+      end: setTime(10, 30),
+      roomId: rooms[0].id, // Executiva
+      userId: vipUser.id,
+      status: BookingStatus.CONFIRMED,
+      type: MeetingType.IN_PERSON,
+      guests: JSON.stringify([{ name: 'Cliente A', email: 'cliente@teste.com' }])
+    },
+    {
+      title: 'Audiência Trabalhista (Online)',
+      start: setTime(14, 0),
+      end: setTime(15, 30),
+      roomId: rooms[3].id, // Cabine B
+      userId: normalUser1.id,
+      status: BookingStatus.CONFIRMED,
+      type: MeetingType.ONLINE,
+      onlineMeetingUrl: 'https://teams.microsoft.com/l/meetup-join/fake-link-audiencia'
+    },
+    {
+      title: 'Alinhamento Interno (Aguardando Admin)',
+      start: setTime(16, 0),
+      end: setTime(17, 0),
+      roomId: rooms[1].id, // Inovação
+      userId: normalUser2.id,
+      status: BookingStatus.PENDING,
+      type: MeetingType.IN_PERSON,
     },
 
-    // --- AMANHÃ (Futuro) ---
+    // --- AMANHÃ (Testar Bloqueios Visuais no Calendário) ---
     {
-      title: 'Apresentação para Cliente',
-      start: addHours(addDays(baseTime, 1), 6), // Amanhã 14:00
-      end: addHours(addDays(baseTime, 1), 8),   // Amanhã 16:00
-      room: rooms[0], // Executiva
-      user: users[1], // João
-      link: 'https://teams.microsoft.com/l/meetup-join/fake-3',
+      title: 'Sustentação Oral Tribunal',
+      start: addDays(setTime(10, 0), 1),
+      end: addDays(setTime(12, 0), 1),
+      roomId: rooms[3].id, // Cabine B
+      userId: vipUser.id,
+      status: BookingStatus.CONFIRMED,
+      type: MeetingType.ONLINE,
+      onlineMeetingUrl: 'https://teams.microsoft.com/l/meetup-join/fake-link-sustentacao'
     },
     {
-      title: 'Call com Fornecedor',
-      start: addHours(addDays(baseTime, 1), 2), // Amanhã 10:00
-      end: addHours(addDays(baseTime, 1), 3),   // Amanhã 11:00
-      room: rooms[3], // Cabine A
-      user: users[3], // Carlos
-      link: 'https://teams.microsoft.com/l/meetup-join/fake-4',
+      title: 'Reunião de Sócios',
+      start: addDays(setTime(14, 0), 1),
+      end: addDays(setTime(18, 0), 1), // Tarde toda bloqueada
+      roomId: rooms[0].id, // Executiva
+      userId: admin.id,
+      status: BookingStatus.CONFIRMED,
+      type: MeetingType.IN_PERSON,
+    },
+    {
+      title: 'Treinamento Novo Sistema (Cancelada)',
+      start: addDays(setTime(9, 0), 1),
+      end: addDays(setTime(11, 0), 1),
+      roomId: rooms[4].id, // Auditório
+      userId: normalUser1.id,
+      status: BookingStatus.CANCELLED,
+      type: MeetingType.IN_PERSON,
     },
   ];
 
   for (const b of bookingsData) {
     await prisma.booking.create({
       data: {
-        roomId: b.room.id,
-        userId: b.user.id,
         title: b.title,
         startTime: b.start,
         endTime: b.end,
-        onlineMeetingUrl: b.link,
+        roomId: b.roomId,
+        userId: b.userId,
+        status: b.status,
+        type: b.type,
+        onlineMeetingUrl: b.onlineMeetingUrl,
+        guests: b.guests,
       },
     });
   }
 
-  console.log(`✅ ${bookingsData.length} Agendamentos criados.`);
-  console.log('🚀 Seed COMPLETO finalizado com sucesso!');
+  console.log(`✅ ${bookingsData.length} Agendamentos criados (Passado, Presente e Futuro).`);
+  console.log('🚀 Seed PREMIUM finalizado com sucesso! Pode abrir a aplicação.');
 }
 
 main()

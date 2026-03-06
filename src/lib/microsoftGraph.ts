@@ -45,7 +45,8 @@ export async function createOnlineMeeting(
   subject: string, 
   startTime: Date, 
   endTime: Date, 
-  attendeeEmail?: string | null
+  attendeeEmail?: string | null,
+  guests?: { email: string; name?: string }[]
 ): Promise<OnlineMeeting> {
   try {
     const token = await getMicrosoftToken();
@@ -65,26 +66,59 @@ export async function createOnlineMeeting(
       subject: subject,
       start: {
         dateTime: startTime.toISOString(),
-        timeZone: "UTC"
+        timeZone: "America/Sao_Paulo" // <-- MELHORIA: Forçar Fuso Horário Local
       },
       end: {
         dateTime: endTime.toISOString(),
-        timeZone: "UTC"
+        timeZone: "America/Sao_Paulo"
+      },
+      // 📍 O TOQUE DE MESTRE: Endereço Físico do Escritório
+      location: {
+        displayName: "Mazzotini Advogados Associados",
+        locationType: "default",
+        address: {
+          street: "Av. Pres. Juscelino Kubitschek, 1400", // Substitua pelo endereço real
+          city: "São Paulo",
+          state: "SP",
+          countryOrRegion: "Brasil",
+          postalCode: "04543-000"
+        }
       },
       // Estas duas flags dizem à Microsoft para gerar um link do Teams para este evento
       isOnlineMeeting: true,
       onlineMeetingProvider: "teamsForBusiness"
     };
 
-    // MAGIA: Adiciona o utilizador que solicitou a reserva como "Convidado Obrigatório"
-    // Assim, a Microsoft envia-lhe um convite de calendário oficial para ele "Aceitar"
+    // MAGIA: Lista de Participantes (Attendees)
+    const attendeesList = [];
+
+    // Adiciona o utilizador interno que solicitou
     if (attendeeEmail) {
-      meetingData.attendees = [
-        {
-          emailAddress: { address: attendeeEmail },
-          type: "required"
+      attendeesList.push({
+        emailAddress: { address: attendeeEmail },
+        type: "required"
+      });
+    }
+
+    // Adiciona os convidados externos
+    // Isso fará a Microsoft enviar o convite de calendário oficial (.ics) com botões Aceitar/Recusar
+    if (guests && guests.length > 0) {
+      for (const guest of guests) {
+        if (guest.email) {
+          attendeesList.push({
+            emailAddress: { 
+              address: guest.email,
+              name: guest.name || ''
+            },
+            type: "required"
+          });
         }
-      ];
+      }
+    }
+
+    // Se houver participantes, injeta no payload
+    if (attendeesList.length > 0) {
+      meetingData.attendees = attendeesList;
     }
 
     const response = await fetch(meetingEndpoint, {
