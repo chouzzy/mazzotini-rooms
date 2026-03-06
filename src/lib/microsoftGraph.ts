@@ -77,11 +77,11 @@ export async function createOnlineMeeting(
         displayName: "Mazzotini Advogados Associados",
         locationType: "default",
         address: {
-          street: "Av. Pres. Juscelino Kubitschek, 1400", // Substitua pelo endereço real
+          street: "Av. Dr. Cardoso de Melo, 878 - 14º Andar - Vila Olímpia, São Paulo - SP", // Substitua pelo endereço real
           city: "São Paulo",
           state: "SP",
           countryOrRegion: "Brasil",
-          postalCode: "04543-000"
+          postalCode: "04548-003"
         }
       },
       // Estas duas flags dizem à Microsoft para gerar um link do Teams para este evento
