@@ -17,14 +17,15 @@ import {
   Icon,
   IconButton
 } from '@chakra-ui/react';
-import { 
-  LuCalendarX, 
-  LuBadgeAlert, 
-  LuVideo, 
-  LuCalendarClock, 
+import {
+  LuCalendarX,
+  LuBadgeAlert,
+  LuVideo,
+  LuCalendarClock,
   LuMapPin,
-  LuCopy
-} from "react-icons/lu"; 
+  LuCopy,
+  LuPencil,
+} from "react-icons/lu";
 import { useSession } from 'next-auth/react'; 
 import { toaster } from '@/components/ui/toaster';
 
@@ -33,8 +34,10 @@ interface Booking {
   title: string;
   startTime: string;
   endTime: string;
-  status: string; 
-  onlineMeetingUrl?: string | null; 
+  status: string;
+  onlineMeetingUrl?: string | null;
+  requestedStartTime?: string | null;
+  requestedEndTime?: string | null;
   room: {
     name: string;
   };
@@ -48,6 +51,11 @@ export default function MyBookings() {
   
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [idToConfirm, setIdToConfirm] = useState<string | null>(null);
+
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
+  const [rescheduleData, setRescheduleData] = useState({ startTime: '', endTime: '' });
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -118,6 +126,57 @@ export default function MyBookings() {
     }
   };
 
+  const handleOpenReschedule = (booking: Booking) => {
+    const formatForInput = (dateStr: string) => {
+      const d = new Date(dateStr);
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().slice(0, 16);
+    };
+    setRescheduleBooking(booking);
+    setRescheduleData({
+      startTime: formatForInput(booking.startTime),
+      endTime: formatForInput(booking.endTime),
+    });
+    setIsRescheduleOpen(true);
+  };
+
+  const handleSubmitReschedule = async () => {
+    if (!rescheduleBooking) return;
+    if (!rescheduleData.startTime || !rescheduleData.endTime) {
+      toaster.create({ title: 'Preencha os dois horários', type: 'warning' });
+      return;
+    }
+    if (new Date(rescheduleData.endTime) <= new Date(rescheduleData.startTime)) {
+      toaster.create({ title: 'O horário de término deve ser após o início', type: 'error' });
+      return;
+    }
+    setReschedulingId(rescheduleBooking.id);
+    try {
+      const res = await fetch('/api/bookings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: rescheduleBooking.id,
+          requestedStartTime: new Date(rescheduleData.startTime).toISOString(),
+          requestedEndTime: new Date(rescheduleData.endTime).toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao solicitar remanejamento');
+      }
+      toaster.create({ title: 'Pedido enviado!', description: 'Aguardando aprovação do administrador.', type: 'success' });
+      setIsRescheduleOpen(false);
+      setBookings((prev) =>
+        prev.map((b) => b.id === rescheduleBooking.id ? { ...b, status: 'RESCHEDULE_PENDING' } : b)
+      );
+    } catch (error: any) {
+      toaster.create({ title: 'Erro', description: error.message, type: 'error' });
+    } finally {
+      setReschedulingId(null);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
       toaster.create({ title: 'Link copiado!', type: 'success' });
@@ -137,6 +196,7 @@ export default function MyBookings() {
       case 'CONFIRMED': return { color: 'green', label: 'Aprovada', borderColor: 'green.500' };
       case 'REJECTED': return { color: 'red', label: 'Rejeitada', borderColor: 'red.500' };
       case 'CANCELLED': return { color: 'gray', label: 'Cancelada', borderColor: 'gray.500' };
+      case 'RESCHEDULE_PENDING': return { color: 'blue', label: 'Remanejar em Análise', borderColor: 'blue.500' };
       default: return { color: 'yellow', label: 'Aguardando Aprovação', borderColor: 'yellow.500' };
     }
   };
@@ -170,6 +230,7 @@ export default function MyBookings() {
           const start = formatDateTime(booking.startTime);
           const end = formatDateTime(booking.endTime);
           const isInactive = booking.status === 'REJECTED' || booking.status === 'CANCELLED';
+          const isReschedulePending = booking.status === 'RESCHEDULE_PENDING';
 
           return (
             <Card.Root 
@@ -258,11 +319,24 @@ export default function MyBookings() {
                       </Flex>
                     )}
 
-                    {/* Botão Cancelar (Só aparece se a reserva não estiver morta) */}
-                    {!isInactive && (
-                      <Button 
-                        size="sm" 
-                        colorPalette="red" 
+                    {/* Botão Remanejar (só para reservas CONFIRMED) */}
+                    {booking.status === 'CONFIRMED' && (
+                      <Button
+                        size="sm"
+                        colorPalette="blue"
+                        variant="outline"
+                        onClick={() => handleOpenReschedule(booking)}
+                        w={{ base: 'full', md: 'auto' }}
+                      >
+                        <LuPencil /> Remanejar
+                      </Button>
+                    )}
+
+                    {/* Botão Cancelar (Só aparece se a reserva não estiver morta nem em análise) */}
+                    {!isInactive && !isReschedulePending && (
+                      <Button
+                        size="sm"
+                        colorPalette="red"
                         variant="solid"
                         loading={cancelingId === booking.id}
                         onClick={() => setIdToConfirm(booking.id)}
@@ -279,6 +353,68 @@ export default function MyBookings() {
           );
         })}
       </Flex>
+
+      {/* Modal de Remanejamento */}
+      <Dialog.Root open={isRescheduleOpen} onOpenChange={(e) => !e.open && setIsRescheduleOpen(false)}>
+        <Dialog.Backdrop bg="blackAlpha.600" backdropFilter="blur(2px)" />
+        <Dialog.Positioner>
+          <Dialog.Content borderRadius="xl" shadow="2xl" bg="bg.panel">
+            <Dialog.Header>
+              <Flex align="center" gap={3}>
+                <Box p={2} bg="blue.900" color="blue.200" borderRadius="full">
+                  <LuPencil size={20} />
+                </Box>
+                <Dialog.Title fontSize="lg" color="fg.DEFAULT">Solicitar Remanejamento</Dialog.Title>
+              </Flex>
+            </Dialog.Header>
+            <Dialog.Body pt={4} pb={2}>
+              <Text color="fg.muted" fontSize="sm" mb={4}>
+                Informe o novo horário desejado para <strong>{rescheduleBooking?.title}</strong>. O pedido ficará pendente até o administrador aprovar.
+              </Text>
+              <Stack gap={4}>
+                <Box>
+                  <Text color="fg.DEFAULT" fontSize="sm" fontWeight="medium" mb={1}>Novo Início</Text>
+                  <input
+                    type="datetime-local"
+                    value={rescheduleData.startTime}
+                    onChange={(e) => setRescheduleData({ ...rescheduleData, startTime: e.target.value })}
+                    style={{
+                      width: '100%', padding: '8px 12px', borderRadius: '6px',
+                      border: '1px solid #334155', backgroundColor: '#0f172a',
+                      color: '#f1f5f9', fontSize: '14px'
+                    }}
+                  />
+                </Box>
+                <Box>
+                  <Text color="fg.DEFAULT" fontSize="sm" fontWeight="medium" mb={1}>Novo Fim</Text>
+                  <input
+                    type="datetime-local"
+                    value={rescheduleData.endTime}
+                    onChange={(e) => setRescheduleData({ ...rescheduleData, endTime: e.target.value })}
+                    style={{
+                      width: '100%', padding: '8px 12px', borderRadius: '6px',
+                      border: '1px solid #334155', backgroundColor: '#0f172a',
+                      color: '#f1f5f9', fontSize: '14px'
+                    }}
+                  />
+                </Box>
+              </Stack>
+            </Dialog.Body>
+            <Dialog.Footer bg="whiteAlpha.50" borderBottomRadius="xl" borderTopWidth="1px" borderColor="border.muted" pt={4}>
+              <Button variant="ghost" color="fg.muted" onClick={() => setIsRescheduleOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                colorPalette="blue"
+                loading={reschedulingId === rescheduleBooking?.id}
+                onClick={handleSubmitReschedule}
+              >
+                Enviar Pedido
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
 
       {/* Dialog de Confirmação Modernizado e Adaptado para Dark Mode */}
       <Dialog.Root 

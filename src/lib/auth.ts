@@ -1,7 +1,12 @@
+// src/lib/auth.ts
+
 import { NextAuthOptions } from "next-auth";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
+
+// Emails que são SEMPRE admin — role restaurado automaticamente a cada login
+const PERMANENT_ADMINS = ['dev.mazzotini@mazzotiniadvogados.com.br'];
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -56,6 +61,16 @@ export const authOptions: NextAuthOptions = {
         session.user.role = (token.role as 'ADMIN' | 'USER') || 'USER';
       }
       return session;
+    },
+  },
+  events: {
+    async signIn({ user }) {
+      if (user.email && PERMANENT_ADMINS.includes(user.email)) {
+        await prisma.user.update({
+          where: { email: user.email },
+          data: { role: 'ADMIN' },
+        });
+      }
     },
   },
   pages: {

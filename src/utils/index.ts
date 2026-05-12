@@ -1,5 +1,5 @@
 
-const whatsappNumber = 5511981966423
+const whatsappNumber = 551155994199
 const email = `contato@awer.co`
 const instagram = `https://www.instagram.com/mazzotiniadvogados/?hl=pt`
 

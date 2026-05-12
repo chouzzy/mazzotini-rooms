@@ -1,8 +1,14 @@
+// src/app/api/bookings/route.ts
+
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createOnlineMeeting } from '@/lib/microsoftGraph';
-import { sendApprovalEmail, sendRejectionEmail, sendCancellationEmail, sendPendingEmail, sendGuestInvitationEmail } from '@/lib/email';
+import {
+  sendApprovalEmail, sendRejectionEmail, sendCancellationEmail, sendPendingEmail,
+  sendGuestInvitationEmail, sendRescheduleRequestedEmail, sendRescheduleApprovedEmail,
+  sendRescheduleRejectedEmail
+} from '@/lib/email';
 import { BookingStatus, MeetingType } from '@prisma/client';
 
 export async function POST(request: Request) {
@@ -71,6 +77,7 @@ export async function POST(request: Request) {
       }
     }
 
+    const { randomUUID } = await import('crypto');
     const booking = await prisma.booking.create({
       data: {
         roomId,
@@ -81,6 +88,7 @@ export async function POST(request: Request) {
         type: isOnline ? MeetingType.ONLINE : MeetingType.IN_PERSON,
         status: BookingStatus.PENDING,
         guests: guests && guests.length > 0 ? JSON.stringify(guests) : null,
+        cancelToken: randomUUID(),
       },
       include: { user: true, room: true }
     });
@@ -104,19 +112,98 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, status, roomId, startTime, endTime } = body;
+    const { id, status, roomId, startTime, endTime, action } = body;
 
     if (!id) {
       return new Response(JSON.stringify({ error: 'ID é obrigatório' }), { status: 400 });
     }
 
-    const existing = await prisma.booking.findUnique({ 
-      where: { id }, 
-      include: { user: true, room: true } 
+    const existing = await prisma.booking.findUnique({
+      where: { id },
+      include: { user: true, room: true }
     });
 
     if (!existing) {
       return new Response(JSON.stringify({ error: 'Reserva não encontrada' }), { status: 404 });
+    }
+
+    // Aprovação ou recusa de pedido de remanejamento feito pelo usuário
+    if (action === 'approve_reschedule' || action === 'reject_reschedule') {
+      if (existing.status !== BookingStatus.RESCHEDULE_PENDING) {
+        return new Response(JSON.stringify({ error: 'Esta reserva não possui pedido de remanejamento pendente.' }), { status: 400 });
+      }
+
+      if (action === 'approve_reschedule') {
+        const approvedStart = existing.requestedStartTime!;
+        const approvedEnd = existing.requestedEndTime!;
+
+        const conflict = await prisma.booking.findFirst({
+          where: {
+            roomId: existing.roomId,
+            status: BookingStatus.CONFIRMED,
+            id: { not: id },
+            AND: [{ startTime: { lt: approvedEnd } }, { endTime: { gt: approvedStart } }]
+          }
+        });
+        if (conflict) {
+          return new Response(JSON.stringify({ error: 'Não é possível aprovar. Já existe uma reserva confirmada no novo horário solicitado.' }), { status: 409 });
+        }
+
+        // Regera link Teams se for reunião online
+        let onlineMeetingUrl = existing.onlineMeetingUrl;
+        if (existing.type === MeetingType.ONLINE) {
+          try {
+            if (existing.user.email) {
+              let parsedGuests: any[] = [];
+              if (existing.guests) { try { parsedGuests = JSON.parse(existing.guests); } catch (e) {} }
+              const meeting = await createOnlineMeeting(existing.title, approvedStart, approvedEnd, existing.user.email, parsedGuests);
+              onlineMeetingUrl = meeting.joinWebUrl;
+            }
+          } catch (err) {
+            console.error('Erro ao regerar link do Teams no remanejamento:', err);
+          }
+        }
+
+        const updated = await prisma.booking.update({
+          where: { id },
+          data: {
+            status: BookingStatus.CONFIRMED,
+            startTime: approvedStart,
+            endTime: approvedEnd,
+            requestedStartTime: null,
+            requestedEndTime: null,
+            onlineMeetingUrl,
+          },
+          include: { user: true, room: true }
+        });
+
+        if (existing.user.email) {
+          await sendRescheduleApprovedEmail(
+            existing.user.email, updated.title, updated.room.name,
+            updated.startTime, updated.endTime, updated.onlineMeetingUrl, existing.cancelToken
+          );
+        }
+        return new Response(JSON.stringify(updated), { status: 200 });
+      }
+
+      // reject_reschedule: cancela o pedido, mantém reserva original CONFIRMED
+      const restored = await prisma.booking.update({
+        where: { id },
+        data: {
+          status: BookingStatus.CONFIRMED,
+          requestedStartTime: null,
+          requestedEndTime: null,
+        },
+        include: { user: true, room: true }
+      });
+
+      if (existing.user.email) {
+        await sendRescheduleRejectedEmail(
+          existing.user.email, restored.title, restored.room.name,
+          restored.startTime, restored.endTime
+        );
+      }
+      return new Response(JSON.stringify(restored), { status: 200 });
     }
 
     const newRoomId = roomId || existing.roomId;
@@ -143,9 +230,8 @@ export async function PUT(request: Request) {
     }
 
     let onlineMeetingUrl = existing.onlineMeetingUrl;
-    let parsedGuests = [];
-    
-    // Converte os convidados do banco de volta para Array para mandar pra Microsoft
+    let parsedGuests: any[] = [];
+
     if (existing.guests) {
       try { parsedGuests = JSON.parse(existing.guests); } catch (e) {}
     }
@@ -153,14 +239,16 @@ export async function PUT(request: Request) {
     // Se aprovada e for tipo ONLINE, gera o link no Teams enviando os convidados
     if (newStatus === BookingStatus.CONFIRMED && existing.type === MeetingType.ONLINE && !onlineMeetingUrl) {
       try {
-        const meeting = await createOnlineMeeting(
-          existing.title, 
-          newStartTime, 
-          newEndTime, 
-          existing.user.email,
-          parsedGuests // <-- ENVIAMOS A LISTA DE CONVIDADOS AQUI
-        );
-        onlineMeetingUrl = meeting.joinWebUrl;
+        if (existing.user.email) {
+          const meeting = await createOnlineMeeting(
+            existing.title,
+            newStartTime,
+            newEndTime,
+            existing.user.email,
+            parsedGuests
+          );
+          onlineMeetingUrl = meeting.joinWebUrl;
+        }
       } catch (error) {
         console.error("Erro ao gerar link do Teams:", error);
       }
@@ -175,18 +263,16 @@ export async function PUT(request: Request) {
         endTime: newEndTime,
         onlineMeetingUrl
       },
-      include: { user: true, room: true } 
+      include: { user: true, room: true }
     });
 
     if (existing.user.email) {
       if (newStatus === BookingStatus.CONFIRMED && existing.status === BookingStatus.PENDING) {
-        // Envia para o solicitante
         await sendApprovalEmail(
-          existing.user.email, updated.title, updated.room.name, 
-          updated.startTime, updated.endTime, updated.onlineMeetingUrl
+          existing.user.email, updated.title, updated.room.name,
+          updated.startTime, updated.endTime, updated.onlineMeetingUrl, existing.cancelToken
         );
 
-        // Dispara também nosso e-mail customizado (branded) para os convidados
         if (parsedGuests.length > 0) {
           const hostName = updated.user.name || updated.user.email || 'Membro da Equipe';
           for (const guest of parsedGuests) {
@@ -226,15 +312,15 @@ export async function PUT(request: Request) {
           });
           if (conflict.user.email) {
              await sendRejectionEmail(
-               conflict.user.email, conflict.title, updated.room.name, 
+               conflict.user.email, conflict.title, updated.room.name,
                conflict.startTime, conflict.endTime
              );
           }
         }
-      } 
+      }
       else if (newStatus === BookingStatus.REJECTED && existing.status !== BookingStatus.REJECTED) {
         await sendRejectionEmail(
-          existing.user.email, updated.title, updated.room.name, 
+          existing.user.email, updated.title, updated.room.name,
           updated.startTime, updated.endTime
         );
       }
@@ -244,6 +330,103 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Erro no PUT /api/bookings:', error);
     return new Response(JSON.stringify({ error: 'Erro ao atualizar' }), { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return new Response(JSON.stringify({ error: 'Não autenticado' }), { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, requestedStartTime, requestedEndTime } = body;
+
+    if (!id || !requestedStartTime || !requestedEndTime) {
+      return new Response(JSON.stringify({ error: 'Campos obrigatórios ausentes' }), { status: 400 });
+    }
+
+    const newStart = new Date(requestedStartTime);
+    const newEnd = new Date(requestedEndTime);
+
+    if (newEnd <= newStart) {
+      return new Response(JSON.stringify({ error: 'O horário de término deve ser posterior ao início.' }), { status: 400 });
+    }
+
+    const existing = await prisma.booking.findUnique({
+      where: { id },
+      include: { user: true, room: true }
+    });
+
+    if (!existing) {
+      return new Response(JSON.stringify({ error: 'Reserva não encontrada' }), { status: 404 });
+    }
+
+    const requestingUser = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!requestingUser || existing.userId !== requestingUser.id) {
+      return new Response(JSON.stringify({ error: 'Não autorizado' }), { status: 403 });
+    }
+
+    if (existing.status !== BookingStatus.CONFIRMED) {
+      return new Response(JSON.stringify({ error: 'Apenas reservas confirmadas podem ser remanejadas.' }), { status: 400 });
+    }
+
+    const conflict = await prisma.booking.findFirst({
+      where: {
+        roomId: existing.roomId,
+        status: { in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
+        id: { not: id },
+        AND: [
+          { startTime: { lt: newEnd } },
+          { endTime: { gt: newStart } }
+        ]
+      }
+    });
+
+    if (conflict) {
+      return new Response(JSON.stringify({ error: 'Não há disponibilidade na sala para o novo horário solicitado.' }), { status: 409 });
+    }
+
+    const isAdmin = requestingUser.role === 'ADMIN';
+
+    if (isAdmin) {
+      // Admin remarca direto — sem precisar de aprovação
+      const updated = await prisma.booking.update({
+        where: { id },
+        data: { startTime: newStart, endTime: newEnd },
+        include: { user: true, room: true }
+      });
+      if (existing.user.email) {
+        await sendRescheduleApprovedEmail(
+          existing.user.email, updated.title, updated.room.name,
+          updated.startTime, updated.endTime, updated.onlineMeetingUrl, existing.cancelToken
+        );
+      }
+      return new Response(JSON.stringify(updated), { status: 200 });
+    }
+
+    // Usuário comum: vai para aprovação do admin
+    const updated = await prisma.booking.update({
+      where: { id },
+      data: {
+        requestedStartTime: newStart,
+        requestedEndTime: newEnd,
+        status: BookingStatus.RESCHEDULE_PENDING,
+      },
+      include: { user: true, room: true }
+    });
+
+    if (existing.user.email) {
+      await sendRescheduleRequestedEmail(
+        existing.user.email, updated.title, updated.room.name, newStart, newEnd
+      );
+    }
+
+    return new Response(JSON.stringify(updated), { status: 200 });
+  } catch (error) {
+    console.error('Erro no PATCH /api/bookings:', error);
+    return new Response(JSON.stringify({ error: 'Erro ao solicitar remanejamento' }), { status: 500 });
   }
 }
 

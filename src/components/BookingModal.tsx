@@ -38,6 +38,55 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
   // ESTADO DA SUGESTÃO DE SALA
   const [suggestion, setSuggestion] = useState<SuggestedRoom | null>(null);
 
+  const DURATIONS = [
+    { label: '30min', minutes: 30 },
+    { label: '1h',    minutes: 60 },
+    { label: '1h30',  minutes: 90 },
+    { label: '2h',    minutes: 120 },
+    { label: '2h30',  minutes: 150 },
+    { label: '3h',    minutes: 180 },
+  ];
+
+  const toInputValue = (date: Date) => {
+    const d = new Date(date);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  };
+
+  const handleDayShortcut = (daysFromNow: number) => {
+    const target = new Date();
+    target.setDate(target.getDate() + daysFromNow);
+
+    if (startTime) {
+      const existing = new Date(startTime);
+      target.setHours(existing.getHours(), existing.getMinutes(), 0, 0);
+    } else if (daysFromNow === 0) {
+      const min = new Date(minDateTime);
+      target.setHours(min.getHours(), min.getMinutes(), 0, 0);
+    } else {
+      target.setHours(10, 30, 0, 0);
+    }
+
+    const newStart = toInputValue(target);
+    setStartTime(newStart);
+
+    if (endTime && startTime) {
+      const duration = new Date(endTime).getTime() - new Date(startTime).getTime();
+      if (duration > 0) setEndTime(toInputValue(new Date(target.getTime() + duration)));
+    }
+    setSuggestion(null);
+  };
+
+  const handleDurationShortcut = (minutes: number) => {
+    if (!startTime) {
+      toaster.create({ title: 'Defina o horário de início primeiro', type: 'warning' });
+      return;
+    }
+    const end = new Date(new Date(startTime).getTime() + minutes * 60 * 1000);
+    setEndTime(toInputValue(end));
+    setSuggestion(null);
+  };
+
   const getMinBookingDateTime = () => {
     const now = new Date();
     const hour = now.getHours();
@@ -188,6 +237,28 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
                 <Input placeholder="Ex: Reunião de Alinhamento" value={title} onChange={(e) => setTitle(e.target.value)} />
               </Field.Root>
 
+              {/* ATALHOS DE DIA */}
+              <Box>
+                <Text fontSize="xs" color="fg.muted" mb={2} fontWeight="medium">Dia</Text>
+                <Flex gap={2} wrap="wrap">
+                  {[
+                    { label: 'Hoje',             days: 0 },
+                    { label: 'Amanhã',           days: 1 },
+                    { label: 'Depois de amanhã', days: 2 },
+                  ].map(({ label, days }) => (
+                    <Button
+                      key={label}
+                      size="xs"
+                      variant="outline"
+                      colorPalette="brand"
+                      onClick={() => handleDayShortcut(days)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </Flex>
+              </Box>
+
               <Flex gap={4} direction={{ base: 'column', sm: 'row' }}>
                 <Field.Root required flex={1}>
                   <Field.Label>Início</Field.Label>
@@ -198,6 +269,24 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
                   <Input type="datetime-local" value={endTime} min={startTime || minDateTime} onChange={(e) => { setEndTime(e.target.value); setSuggestion(null); }} />
                 </Field.Root>
               </Flex>
+
+              {/* ATALHOS DE DURAÇÃO */}
+              <Box>
+                <Text fontSize="xs" color="fg.muted" mb={2} fontWeight="medium">Duração</Text>
+                <Flex gap={2} wrap="wrap">
+                  {DURATIONS.map(({ label, minutes }) => (
+                    <Button
+                      key={label}
+                      size="xs"
+                      variant="outline"
+                      colorPalette="brand"
+                      onClick={() => handleDurationShortcut(minutes)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </Flex>
+              </Box>
 
               <Separator my={2} />
 

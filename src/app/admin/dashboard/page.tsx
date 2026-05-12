@@ -17,8 +17,10 @@ interface Booking {
   title: string;
   startTime: string;
   endTime: string;
-  status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
-  roomId: string; 
+  status: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED' | 'RESCHEDULE_PENDING';
+  roomId: string;
+  requestedStartTime?: string | null;
+  requestedEndTime?: string | null;
   room: {
     name: string;
     capacity: number;
@@ -97,6 +99,30 @@ export default function AdminDashboardPage() {
   const handleCancelApproved = async (id: string) => {
     if(!confirm("Deseja realmente cancelar esta reserva já aprovada? O usuário será notificado.")) return;
     handleUpdateStatus(id, 'REJECTED');
+  };
+
+  const handleRescheduleAction = async (id: string, action: 'approve_reschedule' | 'reject_reschedule') => {
+    setProcessingId(id);
+    try {
+      const res = await fetch('/api/bookings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Falha ao processar pedido');
+      }
+      toaster.create({
+        title: action === 'approve_reschedule' ? 'Remanejamento aprovado!' : 'Pedido recusado — reserva original mantida.',
+        type: 'success',
+      });
+      fetchBookings();
+    } catch (error: any) {
+      toaster.create({ title: 'Erro', description: error.message, type: 'error' });
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   // -------------------------------------------------------------
@@ -299,7 +325,9 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const pendingBookings = bookings.filter(b => b.status === 'PENDING' && new Date(b.startTime) >= now);
+  const pendingBookings = bookings.filter(b =>
+    (b.status === 'PENDING' || b.status === 'RESCHEDULE_PENDING') && new Date(b.startTime) >= now
+  );
   const confirmedBookings = bookings.filter(b => b.status === 'CONFIRMED' && new Date(b.endTime) >= now);
   
   const pastBookings = bookings.filter(b => 
@@ -465,13 +493,42 @@ export default function AdminDashboardPage() {
                                 <LuTimer style={{ marginRight: '4px' }} /> {urgency.text}
                               </Badge>
                             )}
-                            
+
+                            {/* Pedido de remanejamento do usuário */}
+                            {booking.status === 'RESCHEDULE_PENDING' ? (
+                              <Flex direction="column" align="flex-end" gap={2}>
+                                <Badge colorPalette="blue" size="sm" variant="solid">🔄 Pedido de Remanejamento</Badge>
+                                {booking.requestedStartTime && booking.requestedEndTime && (
+                                  <Box mt={1} p={2} bg="blue.950" borderRadius="md" borderWidth="1px" borderColor="blue.800" textAlign="left" maxW="300px">
+                                    <Text fontSize="xs" color="blue.200" fontWeight="bold" mb={1}>Novo horário solicitado:</Text>
+                                    <Text fontSize="xs" color="blue.100">{formatDate(booking.requestedStartTime)}</Text>
+                                    <Text fontSize="xs" color="blue.100">até {formatDate(booking.requestedEndTime)}</Text>
+                                  </Box>
+                                )}
+                                <Stack direction="row" gap={2} mt={1}>
+                                  <Button
+                                    size="xs" colorPalette="green" variant="solid"
+                                    onClick={() => handleRescheduleAction(booking.id, 'approve_reschedule')}
+                                    loading={processingId === booking.id}
+                                  >
+                                    <LuCheck /> Aprovar Mudança
+                                  </Button>
+                                  <Button
+                                    size="xs" colorPalette="orange" variant="solid"
+                                    onClick={() => handleRescheduleAction(booking.id, 'reject_reschedule')}
+                                    loading={processingId === booking.id}
+                                  >
+                                    <LuX /> Recusar Pedido
+                                  </Button>
+                                </Stack>
+                              </Flex>
+                            ) : (
                             <Stack direction="row" gap={2} mt={1}>
                               {/* Botão Aprovar: Fica desativado se houver conflito! */}
-                              <Button 
-                                size="xs" 
-                                colorPalette="green" 
-                                onClick={() => handleUpdateStatus(booking.id, 'CONFIRMED')} 
+                              <Button
+                                size="xs"
+                                colorPalette="green"
+                                onClick={() => handleUpdateStatus(booking.id, 'CONFIRMED')}
                                 loading={processingId === booking.id}
                                 disabled={hasConflict}
                               >
@@ -484,6 +541,7 @@ export default function AdminDashboardPage() {
                                 <LuX /> Rejeitar
                               </Button>
                             </Stack>
+                            )}
 
                             {/* O ALERTA INTELIGENTE DE CONFLITO */}
                             {hasConflict && (

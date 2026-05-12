@@ -57,9 +57,13 @@ export async function sendEmail({ to, subject, body }: EmailPayload): Promise<bo
 }
 
 export async function sendApprovalEmail(
-  userEmail: string, bookingTitle: string, roomName: string, 
-  startTime: Date | string, endTime: Date | string, meetingLink?: string | null
+  userEmail: string, bookingTitle: string, roomName: string,
+  startTime: Date | string, endTime: Date | string, meetingLink?: string | null,
+  cancelToken?: string | null
 ) {
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://salas.mazzotiniadvogados.com.br';
+  const cancelUrl = cancelToken ? `${baseUrl}/api/bookings/cancel?token=${cancelToken}` : null;
+
   const htmlBody = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
       <div style="background-color: #1e3a8a; padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
@@ -79,6 +83,14 @@ export async function sendApprovalEmail(
           <div style="text-align: center; margin-top: 32px; margin-bottom: 16px;">
             <a href="${meetingLink}" style="background-color: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
               Ingressar na Reunião (Teams)
+            </a>
+          </div>
+        ` : ''}
+        ${cancelUrl ? `
+          <div style="text-align: center; margin-top: ${meetingLink ? '16px' : '32px'}; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+            <p style="color: #64748b; font-size: 13px; margin-bottom: 12px;">Precisa cancelar? Clique no botão abaixo:</p>
+            <a href="${cancelUrl}" style="background-color: #ffffff; color: #dc2626; padding: 10px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; border: 2px solid #dc2626; font-size: 14px;">
+              Cancelar Reserva
             </a>
           </div>
         ` : ''}
@@ -202,7 +214,115 @@ export async function sendInviteEmail(userEmail: string, userName: string, redee
 }
 
 // -----------------------------------------------------
-// NOVO: TEMPLATE PARA CONVIDADOS DA REUNIÃO
+// TEMPLATES DE REMANEJAMENTO (SOLICITADO PELO USUÁRIO)
+// -----------------------------------------------------
+export async function sendRescheduleRequestedEmail(
+  userEmail: string, bookingTitle: string, roomName: string,
+  requestedStart: Date | string, requestedEnd: Date | string
+) {
+  const htmlBody = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
+      <div style="background-color: #1e3a8a; padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Mazzotini Rooms</h1>
+      </div>
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 0 0 8px 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h2 style="color: #0284c7; margin-top: 0;">🔄 Pedido de Remanejamento Recebido</h2>
+        <p style="color: #334155; font-size: 16px; line-height: 1.5;">Olá,</p>
+        <p style="color: #334155; font-size: 16px; line-height: 1.5;">Recebemos o seu pedido de remanejamento para a reserva <strong>${bookingTitle}</strong>. Ele está aguardando aprovação do administrador.</p>
+        <div style="background-color: #e0f2fe; border-left: 4px solid #0284c7; padding: 16px; margin: 24px 0; border-radius: 4px;">
+          <p style="margin: 0 0 4px 0; color: #0c4a6e; font-size: 13px; font-weight: bold; text-transform: uppercase;">Novo horário solicitado:</p>
+          <p style="margin: 0 0 8px 0; color: #1e293b; font-size: 15px;"><strong>Espaço:</strong> ${roomName}</p>
+          <p style="margin: 0 0 8px 0; color: #1e293b; font-size: 15px;"><strong>Início:</strong> ${formatarData(requestedStart)}</p>
+          <p style="margin: 0; color: #1e293b; font-size: 15px;"><strong>Fim:</strong> ${formatarData(requestedEnd)}</p>
+        </div>
+        <p style="color: #64748b; font-size: 14px;">Você receberá uma notificação assim que o administrador avaliar o pedido. Caso seja recusado, a sua reserva original será mantida.</p>
+      </div>
+      <div style="text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px;">
+        Este é um e-mail automático. Por favor, não responda. <br>
+        &copy; ${new Date().getFullYear()} Mazzotini Advogados
+      </div>
+    </div>
+  `;
+  return sendEmail({ to: userEmail, subject: `Pedido de Remanejamento: ${bookingTitle}`, body: htmlBody });
+}
+
+export async function sendRescheduleApprovedEmail(
+  userEmail: string, bookingTitle: string, roomName: string,
+  newStart: Date | string, newEnd: Date | string, meetingLink?: string | null,
+  cancelToken?: string | null
+) {
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://salas.mazzotiniadvogados.com.br';
+  const cancelUrl = cancelToken ? `${baseUrl}/api/bookings/cancel?token=${cancelToken}` : null;
+
+  const htmlBody = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
+      <div style="background-color: #1e3a8a; padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Mazzotini Rooms</h1>
+      </div>
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 0 0 8px 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h2 style="color: #16a34a; margin-top: 0;">✅ Remanejamento Aprovado</h2>
+        <p style="color: #334155; font-size: 16px; line-height: 1.5;">Olá,</p>
+        <p style="color: #334155; font-size: 16px; line-height: 1.5;">O seu pedido de remanejamento para <strong>${bookingTitle}</strong> foi aprovado! Confira os novos horários:</p>
+        <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 16px; margin: 24px 0; border-radius: 4px;">
+          <p style="margin: 0 0 8px 0; color: #1e293b; font-size: 15px;"><strong>Espaço:</strong> ${roomName}</p>
+          <p style="margin: 0 0 8px 0; color: #1e293b; font-size: 15px;"><strong>Novo Início:</strong> ${formatarData(newStart)}</p>
+          <p style="margin: 0; color: #1e293b; font-size: 15px;"><strong>Novo Fim:</strong> ${formatarData(newEnd)}</p>
+        </div>
+        ${meetingLink ? `
+          <div style="text-align: center; margin-top: 24px; margin-bottom: 16px;">
+            <a href="${meetingLink}" style="background-color: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+              Ingressar na Reunião (Teams)
+            </a>
+          </div>
+        ` : ''}
+        ${cancelUrl ? `
+          <div style="text-align: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+            <p style="color: #64748b; font-size: 13px; margin-bottom: 12px;">Precisa cancelar?</p>
+            <a href="${cancelUrl}" style="background-color: #ffffff; color: #dc2626; padding: 10px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; border: 2px solid #dc2626; font-size: 14px;">
+              Cancelar Reserva
+            </a>
+          </div>
+        ` : ''}
+      </div>
+      <div style="text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px;">
+        Este é um e-mail automático. Por favor, não responda. <br>
+        &copy; ${new Date().getFullYear()} Mazzotini Advogados
+      </div>
+    </div>
+  `;
+  return sendEmail({ to: userEmail, subject: `Remanejamento Aprovado: ${bookingTitle}`, body: htmlBody });
+}
+
+export async function sendRescheduleRejectedEmail(
+  userEmail: string, bookingTitle: string, roomName: string,
+  originalStart: Date | string, originalEnd: Date | string
+) {
+  const htmlBody = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
+      <div style="background-color: #1e3a8a; padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Mazzotini Rooms</h1>
+      </div>
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 0 0 8px 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h2 style="color: #d97706; margin-top: 0;">⚠️ Pedido de Remanejamento Não Aprovado</h2>
+        <p style="color: #334155; font-size: 16px; line-height: 1.5;">Olá,</p>
+        <p style="color: #334155; font-size: 16px; line-height: 1.5;">Infelizmente, o seu pedido de remanejamento para <strong>${bookingTitle}</strong> não pôde ser atendido neste momento. <strong>Sua reserva original foi mantida</strong> nos horários abaixo:</p>
+        <div style="background-color: #fffbeb; border-left: 4px solid #d97706; padding: 16px; margin: 24px 0; border-radius: 4px;">
+          <p style="margin: 0 0 8px 0; color: #1e293b; font-size: 15px;"><strong>Espaço:</strong> ${roomName}</p>
+          <p style="margin: 0 0 8px 0; color: #1e293b; font-size: 15px;"><strong>Início:</strong> ${formatarData(originalStart)}</p>
+          <p style="margin: 0; color: #1e293b; font-size: 15px;"><strong>Fim:</strong> ${formatarData(originalEnd)}</p>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px;">
+        Este é um e-mail automático. Por favor, não responda. <br>
+        &copy; ${new Date().getFullYear()} Mazzotini Advogados
+      </div>
+    </div>
+  `;
+  return sendEmail({ to: userEmail, subject: `Pedido de Remanejamento: ${bookingTitle}`, body: htmlBody });
+}
+
+// -----------------------------------------------------
+// TEMPLATE PARA CONVIDADOS DA REUNIÃO
 // -----------------------------------------------------
 export async function sendGuestInvitationEmail(
   guestEmail: string, guestName: string, bookingTitle: string, roomName: string, 

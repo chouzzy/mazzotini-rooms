@@ -45,6 +45,8 @@ export async function GET(request: Request) {
   }
 }
 
+const PROTECTED_ADMINS = ['dev.mazzotini@mazzotiniadvogados.com.br'];
+
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
@@ -54,7 +56,12 @@ export async function PUT(request: Request) {
       return new Response(JSON.stringify({ error: 'ID é obrigatório' }), { status: 400 });
     }
 
-    // Prepara o objeto de atualização apenas com o que foi enviado
+    const target = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+
+    if (target?.email && PROTECTED_ADMINS.includes(target.email) && role && role !== 'ADMIN') {
+      return new Response(JSON.stringify({ error: 'Este administrador não pode ter seu papel alterado.' }), { status: 403 });
+    }
+
     const dataToUpdate: any = {};
     if (role !== undefined) dataToUpdate.role = role as Role;
     if (isVip !== undefined) dataToUpdate.isVip = isVip;
