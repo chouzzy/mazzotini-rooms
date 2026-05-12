@@ -1,3 +1,5 @@
+// src/lib/microsoftGraph.ts
+
 interface OnlineMeeting {
   id: string;
   joinWebUrl: string;
@@ -136,7 +138,7 @@ export async function createOnlineMeeting(
     }
 
     const data = await response.json();
-    
+
     return {
       id: data.id,
       // No endpoint de eventos, o link do Teams vem dentro do objeto onlineMeeting
@@ -147,5 +149,30 @@ export async function createOnlineMeeting(
   } catch (error) {
     console.error("Erro no createOnlineMeeting:", error);
     throw error;
+  }
+}
+
+// 3. Deletar evento do calendário/Teams pelo ID do evento no Graph
+export async function deleteCalendarEvent(eventId: string): Promise<void> {
+  const organizerId = process.env.TEAMS_ORGANIZER_ID;
+  if (!organizerId || !eventId) return;
+
+  try {
+    const token = await getMicrosoftToken();
+    const endpoint = `https://graph.microsoft.com/v1.0/users/${organizerId}/events/${eventId}`;
+
+    const response = await fetch(endpoint, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok && response.status !== 404) {
+      const err = await response.text();
+      console.error(`Erro ao deletar evento do calendário (${eventId}):`, err);
+    } else {
+      console.log(`✅ Evento de calendário deletado: ${eventId}`);
+    }
+  } catch (error) {
+    console.error('Erro ao deletar evento do calendário:', error);
   }
 }

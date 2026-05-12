@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { createOnlineMeeting } from '@/lib/microsoftGraph';
+import { createOnlineMeeting, deleteCalendarEvent } from '@/lib/microsoftGraph';
 import {
   sendApprovalEmail, sendRejectionEmail, sendCancellationEmail, sendPendingEmail,
   sendGuestInvitationEmail, sendRescheduleRequestedEmail, sendRescheduleApprovedEmail,
@@ -149,8 +149,14 @@ export async function PUT(request: Request) {
           return new Response(JSON.stringify({ error: 'Não é possível aprovar. Já existe uma reserva confirmada no novo horário solicitado.' }), { status: 409 });
         }
 
-        // Regera link Teams se for reunião online
+        // Deleta o evento antigo do calendário antes de recriar
+        if (existing.meetingId) {
+          await deleteCalendarEvent(existing.meetingId);
+        }
+
+        // Recria o evento no Teams/calendário com os novos horários
         let onlineMeetingUrl = existing.onlineMeetingUrl;
+        let newMeetingId = existing.meetingId;
         if (existing.type === MeetingType.ONLINE) {
           try {
             if (existing.user.email) {
@@ -158,9 +164,10 @@ export async function PUT(request: Request) {
               if (existing.guests) { try { parsedGuests = JSON.parse(existing.guests); } catch (e) {} }
               const meeting = await createOnlineMeeting(existing.title, approvedStart, approvedEnd, existing.user.email, parsedGuests);
               onlineMeetingUrl = meeting.joinWebUrl;
+              newMeetingId = meeting.id;
             }
           } catch (err) {
-            console.error('Erro ao regerar link do Teams no remanejamento:', err);
+            console.error('Erro ao recriar reunião do Teams no remanejamento:', err);
           }
         }
 
@@ -170,6 +177,7 @@ export async function PUT(request: Request) {
             status: BookingStatus.CONFIRMED,
             startTime: approvedStart,
             endTime: approvedEnd,
+            meetingId: newMeetingId,
             requestedStartTime: null,
             requestedEndTime: null,
             onlineMeetingUrl,
@@ -237,6 +245,7 @@ export async function PUT(request: Request) {
     }
 
     // Se aprovada e for tipo ONLINE, gera o link no Teams enviando os convidados
+    let newMeetingId = existing.meetingId;
     if (newStatus === BookingStatus.CONFIRMED && existing.type === MeetingType.ONLINE && !onlineMeetingUrl) {
       try {
         if (existing.user.email) {
@@ -248,6 +257,7 @@ export async function PUT(request: Request) {
             parsedGuests
           );
           onlineMeetingUrl = meeting.joinWebUrl;
+          newMeetingId = meeting.id;
         }
       } catch (error) {
         console.error("Erro ao gerar link do Teams:", error);
@@ -261,7 +271,8 @@ export async function PUT(request: Request) {
         roomId: newRoomId,
         startTime: newStartTime,
         endTime: newEndTime,
-        onlineMeetingUrl
+        onlineMeetingUrl,
+        meetingId: newMeetingId,
       },
       include: { user: true, room: true }
     });
@@ -391,10 +402,30 @@ export async function PATCH(request: Request) {
     const isAdmin = requestingUser.role === 'ADMIN';
 
     if (isAdmin) {
-      // Admin remarca direto — sem precisar de aprovação
+      // Admin remarca direto — deleta o evento antigo e recria com novos horários
+      if (existing.meetingId) {
+        await deleteCalendarEvent(existing.meetingId);
+      }
+
+      let onlineMeetingUrl = existing.onlineMeetingUrl;
+      let newMeetingId = existing.meetingId;
+      if (existing.type === MeetingType.ONLINE) {
+        try {
+          if (existing.user.email) {
+            let parsedGuests: any[] = [];
+            if (existing.guests) { try { parsedGuests = JSON.parse(existing.guests); } catch (e) {} }
+            const meeting = await createOnlineMeeting(existing.title, newStart, newEnd, existing.user.email, parsedGuests);
+            onlineMeetingUrl = meeting.joinWebUrl;
+            newMeetingId = meeting.id;
+          }
+        } catch (err) {
+          console.error('Erro ao recriar reunião do Teams (admin PATCH):', err);
+        }
+      }
+
       const updated = await prisma.booking.update({
         where: { id },
-        data: { startTime: newStart, endTime: newEnd },
+        data: { startTime: newStart, endTime: newEnd, onlineMeetingUrl, meetingId: newMeetingId },
         include: { user: true, room: true }
       });
       if (existing.user.email) {
@@ -469,11 +500,16 @@ export async function DELETE(request: Request) {
     
     if (!existing) return new Response(JSON.stringify({ error: 'Agendamento não encontrado' }), { status: 404 });
 
+    // Remove o evento do calendário/Teams antes de deletar do banco
+    if (existing.meetingId) {
+      await deleteCalendarEvent(existing.meetingId);
+    }
+
     await prisma.booking.delete({ where: { id } });
 
     if (existing.user.email) {
       await sendCancellationEmail(
-        existing.user.email, existing.title, existing.room.name, 
+        existing.user.email, existing.title, existing.room.name,
         existing.startTime, existing.endTime
       );
     }

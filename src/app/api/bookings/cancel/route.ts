@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { sendCancellationEmail } from '@/lib/email';
+import { deleteCalendarEvent } from '@/lib/microsoftGraph';
 import { BookingStatus } from '@prisma/client';
 
 const redirect = (url: string) =>
@@ -26,6 +27,10 @@ export async function GET(request: Request) {
 
     if (booking.status === BookingStatus.CANCELLED || booking.status === BookingStatus.REJECTED) {
       return redirect(`${baseUrl}/cancelar-reserva?status=ja_cancelado`);
+    }
+
+    if (booking.meetingId) {
+      await deleteCalendarEvent(booking.meetingId);
     }
 
     await prisma.booking.update({
