@@ -103,51 +103,51 @@ export default function Navbar() {
       </Stack>
 
       {/* Área do Usuário + Hamburger Menu (Direita) */}
-      <Flex align="center" gap={4}>
+      <Flex align="center" gap={3} flexShrink={0}>
       {status === 'authenticated' && session?.user && (
       <Flex align="center" gap={3}>
-        <Box textAlign="left">
-        <Flex align="center" gap={2} justify="flex-end">
-        <Text fontSize="sm" fontWeight="medium" lineHeight="1.2" display={{ base: 'none', sm: 'block' }}>
-        {session.user.name}
-        </Text>
-        {isAdmin && (
-        <Box px={1.5} py={0.5} bg="purple.700" color="purple.100" fontSize="2xs" fontWeight="bold" borderRadius="sm">
-          ADMIN
-        </Box>
-        )}
-        
-        </Flex>
-        <Text fontSize="xs" color="fg.muted" textOverflow="ellipsis" overflow="hidden" whiteSpace="nowrap" maxW={40} display={{ base: 'none', sm: 'block' }}>
-        {session.user.email}
-        </Text>
+
+        {/* Nome + email: só aparece em telas grandes onde não há colisão com os links centrais */}
+        <Box textAlign="right" display={{ base: 'none', xl: 'block' }}>
+          <Flex align="center" gap={2} justify="flex-end">
+            <Text fontSize="sm" fontWeight="medium" lineHeight="1.2" whiteSpace="nowrap">
+              {session.user.name}
+            </Text>
+            {isAdmin && (
+              <Box px={1.5} py={0.5} bg="purple.700" color="purple.100" fontSize="2xs" fontWeight="bold" borderRadius="sm" whiteSpace="nowrap">
+                ADMIN
+              </Box>
+            )}
+          </Flex>
+          <Text fontSize="xs" color="fg.muted" textOverflow="ellipsis" overflow="hidden" whiteSpace="nowrap" maxW={44}>
+            {session.user.email}
+          </Text>
         </Box>
 
-        <Avatar.Root bgColor={isAdmin ? 'purple.700' : 'brand.700'} size="sm" mr={{ base: 0, lg: 8 }}>
-        <Avatar.Fallback name={session.user.name || 'User'} />
-        <Avatar.Image src={session.user.image || undefined} />
+        <Avatar.Root bgColor={isAdmin ? 'purple.700' : 'brand.700'} size="sm">
+          <Avatar.Fallback name={session.user.name || 'User'} />
+          <Avatar.Image src={session.user.image || undefined} />
         </Avatar.Root>
-        
 
-        {/* O seu botão de Sair Animado (Oculto no celular por espaço, renderizado dentro do menu no mobile) */}
-        <Box display={{ base: 'none', lg: 'block' }}>
-        <button className="BtnLogout" onClick={() => signOut({ callbackUrl: '/login' })}>
-        <div className="sign">
-        <svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg>
-        </div>
-        <div className="text">Sair</div>
-        </button>
+        {/* Botão Sair — largura fixa para o hover não deslocar o Avatar */}
+        <Box display={{ base: 'none', lg: 'flex' }} w="72px" justifyContent="center" flexShrink={0}>
+          <button className="BtnLogout" onClick={() => signOut({ callbackUrl: '/login' })}>
+            <div className="sign">
+              <svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg>
+            </div>
+            <div className="text">Sair</div>
+          </button>
         </Box>
 
-        {/* Botão Hambúrguer (Apenas Mobile/Tablet) */}
-        <Button 
-        display={{ base: 'flex', lg: 'none' }} 
-        variant="ghost" 
-        size="sm"
-        px={2}
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        {/* Botão Hambúrguer (Mobile/Tablet) */}
+        <Button
+          display={{ base: 'flex', lg: 'none' }}
+          variant="ghost"
+          size="sm"
+          px={2}
+          onClick={() => setIsMobileOpen(!isMobileOpen)}
         >
-        {isMobileOpen ? <LuX size={24} /> : <LuMenu size={24} />}
+          {isMobileOpen ? <LuX size={24} /> : <LuMenu size={24} />}
         </Button>
 
       </Flex>
