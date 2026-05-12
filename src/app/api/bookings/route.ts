@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createOnlineMeeting, deleteCalendarEvent } from '@/lib/microsoftGraph';
+import { createNotification } from '@/lib/notifications';
 import {
   sendApprovalEmail, sendRejectionEmail, sendCancellationEmail, sendPendingEmail,
   sendGuestInvitationEmail, sendRescheduleRequestedEmail, sendRescheduleApprovedEmail,
@@ -96,6 +97,14 @@ export async function POST(request: Request) {
     if (booking.user.email) {
       await sendPendingEmail(booking.user.email, booking.title, booking.room.name, booking.startTime, booking.endTime);
     }
+
+    await createNotification({
+      type: 'NEW_BOOKING',
+      title: `Nova solicitação: ${booking.title}`,
+      body: { userName: booking.user.name || booking.user.email, roomName: booking.room.name, startTime: booking.startTime, endTime: booking.endTime },
+      bookingId: booking.id,
+      forAdmin: true,
+    });
 
     return new Response(JSON.stringify(booking), { status: 201 });
   } catch (error) {
@@ -191,6 +200,14 @@ export async function PUT(request: Request) {
             updated.startTime, updated.endTime, updated.onlineMeetingUrl, existing.cancelToken
           );
         }
+        await createNotification({
+          type: 'RESCHEDULE_APPROVED',
+          title: `Remanejamento aprovado: ${updated.title}`,
+          body: { roomName: updated.room.name, startTime: updated.startTime, endTime: updated.endTime },
+          bookingId: updated.id,
+          userId: existing.userId,
+          forAdmin: false,
+        });
         return new Response(JSON.stringify(updated), { status: 200 });
       }
 
@@ -211,6 +228,14 @@ export async function PUT(request: Request) {
           restored.startTime, restored.endTime
         );
       }
+      await createNotification({
+        type: 'RESCHEDULE_REJECTED',
+        title: `Remanejamento recusado: ${restored.title}`,
+        body: { roomName: restored.room.name, startTime: restored.startTime, endTime: restored.endTime },
+        bookingId: restored.id,
+        userId: existing.userId,
+        forAdmin: false,
+      });
       return new Response(JSON.stringify(restored), { status: 200 });
     }
 
@@ -334,7 +359,26 @@ export async function PUT(request: Request) {
           existing.user.email, updated.title, updated.room.name,
           updated.startTime, updated.endTime
         );
+        await createNotification({
+          type: 'BOOKING_REJECTED',
+          title: `Reserva não aprovada: ${updated.title}`,
+          body: { roomName: updated.room.name, startTime: updated.startTime, endTime: updated.endTime },
+          bookingId: updated.id,
+          userId: existing.userId,
+          forAdmin: false,
+        });
       }
+    }
+
+    if (newStatus === BookingStatus.CONFIRMED && existing.status === BookingStatus.PENDING) {
+      await createNotification({
+        type: 'BOOKING_CONFIRMED',
+        title: `Reserva aprovada: ${updated.title}`,
+        body: { roomName: updated.room.name, startTime: updated.startTime, endTime: updated.endTime },
+        bookingId: updated.id,
+        userId: existing.userId,
+        forAdmin: false,
+      });
     }
 
     return new Response(JSON.stringify(updated), { status: 200 });
@@ -454,6 +498,14 @@ export async function PATCH(request: Request) {
       );
     }
 
+    await createNotification({
+      type: 'RESCHEDULE_REQUESTED',
+      title: `Pedido de remanejamento: ${updated.title}`,
+      body: { userName: existing.user.name || existing.user.email, roomName: updated.room.name, startTime: existing.startTime, endTime: existing.endTime, requestedStart: newStart, requestedEnd: newEnd },
+      bookingId: updated.id,
+      forAdmin: true,
+    });
+
     return new Response(JSON.stringify(updated), { status: 200 });
   } catch (error) {
     console.error('Erro no PATCH /api/bookings:', error);
@@ -513,6 +565,14 @@ export async function DELETE(request: Request) {
         existing.startTime, existing.endTime
       );
     }
+
+    await createNotification({
+      type: 'BOOKING_CANCELLED_BY_USER',
+      title: `Reserva cancelada: ${existing.title}`,
+      body: { userName: existing.user.name || existing.user.email, roomName: existing.room.name, startTime: existing.startTime, endTime: existing.endTime },
+      bookingId: existing.id,
+      forAdmin: true,
+    });
 
     return new Response(null, { status: 204 });
   } catch (error) {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Box, Flex, Button, Link, Stack, Text, Avatar, IconButton } from '@chakra-ui/react';
+import NotificationBell from '@/components/NotificationBell';
 import {
   LuCalendarDays, LuLayoutDashboard, LuCalendarClock,
   LuShieldCheck, LuUsers, LuDoorOpen, LuMenu, LuX,
@@ -128,6 +129,8 @@ export default function Navbar() {
           <Avatar.Fallback name={session.user.name || 'User'} />
           <Avatar.Image src={session.user.image || undefined} />
         </Avatar.Root>
+
+        <NotificationBell />
 
         {/* Botão Sair — largura fixa para o hover não deslocar o Avatar */}
         <Box display={{ base: 'none', lg: 'flex' }} w="72px" justifyContent="center" flexShrink={0}>

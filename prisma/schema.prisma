@@ -114,6 +114,18 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  type      String
+  title     String
+  body      String
+  bookingId String?
+  forAdmin  Boolean  @default(false)
+  userId    String?  @db.ObjectId
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
 model VerificationToken {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   identifier String

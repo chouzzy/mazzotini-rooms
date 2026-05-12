@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { sendCancellationEmail } from '@/lib/email';
 import { deleteCalendarEvent } from '@/lib/microsoftGraph';
+import { createNotification } from '@/lib/notifications';
 import { BookingStatus } from '@prisma/client';
 
 const redirect = (url: string) =>
@@ -44,6 +45,14 @@ export async function GET(request: Request) {
         booking.startTime, booking.endTime
       );
     }
+
+    await createNotification({
+      type: 'BOOKING_CANCELLED_BY_USER',
+      title: `Reserva cancelada: ${booking.title}`,
+      body: { userName: booking.user.name || booking.user.email, roomName: booking.room.name, startTime: booking.startTime, endTime: booking.endTime },
+      bookingId: booking.id,
+      forAdmin: true,
+    });
 
     return redirect(
       `${baseUrl}/cancelar-reserva?status=cancelado&titulo=${encodeURIComponent(booking.title)}`
