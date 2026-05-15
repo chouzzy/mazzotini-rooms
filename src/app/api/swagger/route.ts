@@ -130,7 +130,7 @@ const spec = {
       post: {
         tags: ['Bookings'],
         summary: 'Criar reserva',
-        description: 'Cria uma nova solicitação de reserva com status PENDING. Valida antecedência mínima de 4h para usuários não-VIP e detecta conflitos de horário.',
+        description: 'Cria uma nova solicitação de reserva com status PENDING. Valida antecedência mínima de 1h para usuários não-VIP e detecta conflitos de horário.',
         requestBody: {
           required: true,
           content: {

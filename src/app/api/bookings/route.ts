@@ -32,8 +32,8 @@ export async function POST(request: Request) {
     const now = new Date();
     const diffHours = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
     
-    if (!isVip && diffHours < 3.9) { 
-      return new Response(JSON.stringify({ error: 'O agendamento requer antecedência mínima de 4 horas.' }), { status: 400 });
+    if (!isVip && diffHours < 0.9) {
+      return new Response(JSON.stringify({ error: 'O agendamento requer antecedência mínima de 1 hora.' }), { status: 400 });
     }
 
     const conflictingBooking = await prisma.booking.findFirst({

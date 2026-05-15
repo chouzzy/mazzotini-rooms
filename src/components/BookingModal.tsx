@@ -93,7 +93,7 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
     const isBusinessHours = hour >= 8 && hour < 18;
 
     let minDate = new Date(now);
-    if (isBusinessHours) { minDate.setHours(now.getHours() + 4); }
+    if (isBusinessHours) { minDate.setHours(now.getHours() + 1); }
     else {
       if (hour >= 18) { minDate.setDate(now.getDate() + 1); }
       minDate.setHours(10, 30, 0, 0);
@@ -150,7 +150,7 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
     if (new Date(startTime) < new Date(minDateTime)) {
       return toaster.create({
         title: 'Antecedência Mínima',
-        description: 'O agendamento exige no mínimo 4h de antecedência (ou a partir das 10h30 do dia seguinte).',
+        description: 'O agendamento exige no mínimo 1h de antecedência (ou a partir das 10h30 do dia seguinte).',
         type: 'error'
       });
     }
@@ -229,7 +229,7 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
               )}
 
               <Text fontSize="sm" color="fg.muted">
-                Preencha os dados abaixo. <strong>O prazo mínimo é de 4h.</strong>
+                Preencha os dados abaixo. <strong>O prazo mínimo é de 1h.</strong>
               </Text>
 
               <Field.Root required>
