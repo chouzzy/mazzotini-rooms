@@ -1,3 +1,13 @@
+// GUARD: impede testes de rodarem contra banco de produção
+const dbUrl = process.env.DATABASE_URL || '';
+if (dbUrl.includes('mongodb+srv') || dbUrl.includes('atlas')) {
+  throw new Error(
+    '\n\n🚨 PERIGO: DATABASE_URL aponta para o MongoDB Atlas (produção).\n' +
+    'Crie um arquivo .env.test com uma DATABASE_URL de banco de testes.\n' +
+    'Os testes de integração deletam dados — NUNCA rode contra produção.\n'
+  );
+}
+
 import '@testing-library/jest-dom'
 import 'whatwg-fetch' 
 
