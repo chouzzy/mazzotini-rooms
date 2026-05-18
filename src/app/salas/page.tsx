@@ -42,7 +42,7 @@ export default function RoomsPage() {
         const res = await fetch('/api/rooms');
         if (!res.ok) throw new Error('Falha ao buscar salas');
         const data = await res.json();
-        setRooms(data);
+        setRooms(data.sort((a: Room, b: Room) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true })));
       } catch (error) {
         console.error("Erro ao carregar as salas:", error);
       } finally {
