@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog, Button, Input, Stack, Text, Separator, Field,
   Flex, Box, IconButton, Alert
@@ -27,6 +27,7 @@ interface BookingModalProps {
 export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess }: BookingModalProps) {
   const [loading, setLoading] = useState(false);
   const { data: session } = useSession();
+  const isAdmin = session?.user?.role === 'ADMIN';
 
   const [title, setTitle] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -34,6 +35,13 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
   const [isOnline, setIsOnline] = useState(false);
   const [guests, setGuests] = useState<{ name: string, email: string, phone: string }[]>([]);
   const [minDateTime, setMinDateTime] = useState('');
+
+  // Solicitante — combobox para admin
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [userList, setUserList] = useState<{ id: string; name: string | null; email: string | null }[]>([]);
+  const [comboQuery, setComboQuery] = useState('');
+  const [comboOpen, setComboOpen] = useState(false);
+  const comboRef = useRef<HTMLDivElement>(null);
 
   // ESTADO DA SUGESTÃO DE SALA
   const [suggestion, setSuggestion] = useState<SuggestedRoom | null>(null);
@@ -106,9 +114,29 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
     if (isOpen) {
       setMinDateTime(getMinBookingDateTime());
       setGuests([]); setIsOnline(false); setStartTime(''); setEndTime(''); setTitle('');
-      setSuggestion(null); // Limpa a sugestão ao abrir
+      setSuggestion(null);
+      setSelectedUserId(session?.user?.id || '');
+      setComboQuery('');
+      setComboOpen(false);
+
+      if (isAdmin && userList.length === 0) {
+        fetch('/api/users?limit=100')
+          .then(r => r.json())
+          .then(data => setUserList(data.users || []))
+          .catch(() => {});
+      }
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (comboRef.current && !comboRef.current.contains(e.target as Node)) {
+        setComboOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleAddGuest = () => setGuests([...guests, { name: '', email: '', phone: '' }]);
   const handleRemoveGuest = (index: number) => {
@@ -164,7 +192,7 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           roomId: targetRoomId,
-          userId: session.user.id,
+          userId: selectedUserId || session.user.id,
           title,
           startTime: new Date(startTime).toISOString(),
           endTime: new Date(endTime).toISOString(),
@@ -236,6 +264,81 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
                 <Field.Label>Assunto da Reunião</Field.Label>
                 <Input placeholder="Ex: Reunião de Alinhamento" value={title} onChange={(e) => setTitle(e.target.value)} />
               </Field.Root>
+
+              {/* Combobox de solicitante — visível apenas para admins */}
+              {isAdmin && userList.length > 0 && (
+                <Field.Root>
+                  <Field.Label>
+                    Solicitante
+                    <Text as="span" fontSize="xs" color="fg.muted" ml={2} fontWeight="normal">(padrão: você mesmo)</Text>
+                  </Field.Label>
+
+                  <Box ref={comboRef} position="relative" w="full">
+                    <input
+                      type="text"
+                      placeholder="Buscar usuário..."
+                      value={comboQuery}
+                      onFocus={() => setComboOpen(true)}
+                      onChange={(e) => { setComboQuery(e.target.value); setComboOpen(true); }}
+                      style={{
+                        width: '100%', padding: '8px 12px', borderRadius: '6px',
+                        border: '1px solid #334155', backgroundColor: '#0f172a',
+                        color: '#f1f5f9', fontSize: '14px', outline: 'none',
+                      }}
+                    />
+
+                    {/* Usuário selecionado */}
+                    {selectedUserId && !comboOpen && (
+                      <Box
+                        position="absolute" right={3} top="50%" transform="translateY(-50%)"
+                        fontSize="xs" color="brand.400" fontWeight="medium" pointerEvents="none"
+                      >
+                        ✓ {userList.find(u => u.id === selectedUserId)?.name || 'Selecionado'}
+                      </Box>
+                    )}
+
+                    {/* Dropdown */}
+                    {comboOpen && (
+                      <Box
+                        position="absolute" top="110%" left={0} right={0} zIndex={50}
+                        bg="#1e293b" borderWidth="1px" borderColor="#334155"
+                        borderRadius="8px" shadow="xl" maxH="200px" overflowY="auto"
+                      >
+                        {userList
+                          .filter(u =>
+                            !comboQuery ||
+                            (u.name || '').toLowerCase().includes(comboQuery.toLowerCase()) ||
+                            (u.email || '').toLowerCase().includes(comboQuery.toLowerCase())
+                          )
+                          .map(u => (
+                            <Box
+                              key={u.id}
+                              px={3} py={2} cursor="pointer"
+                              bg={selectedUserId === u.id ? '#334155' : 'transparent'}
+                              _hover={{ bg: '#334155' }}
+                              onClick={() => {
+                                setSelectedUserId(u.id);
+                                setComboQuery(u.name || u.email || '');
+                                setComboOpen(false);
+                              }}
+                            >
+                              <Text fontSize="sm" color="#f1f5f9" fontWeight={selectedUserId === u.id ? 'semibold' : 'normal'}>
+                                {u.name || u.email}
+                                {u.id === session?.user?.id && (
+                                  <Text as="span" fontSize="xs" color="#94a3b8" ml={2}>(você)</Text>
+                                )}
+                              </Text>
+                              {u.name && (
+                                <Text fontSize="xs" color="#C5A47E">{u.email}</Text>
+                              )}
+                            </Box>
+                          ))
+                        }
+                      </Box>
+                    )}
+                  </Box>
+                </Field.Root>
+              )}
 
               {/* ATALHOS DE DIA */}
               <Box>
