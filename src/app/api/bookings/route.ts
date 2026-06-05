@@ -27,12 +27,14 @@ export async function POST(request: Request) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const currentRoom = await prisma.room.findUnique({ where: { id: roomId } });
     const isVip = user?.isVip || false;
+    const userEmail = user?.email?.toLowerCase() || '';
+    const hasNoAdvanceRestriction = isVip || userEmail.includes('administrativo') || userEmail.includes('atendimento');
 
-    // Validação de Backend: Mínimo de 4h
+    // Validação de Backend: Mínimo de 1h (exceto VIP, administrativo e atendimento)
     const now = new Date();
     const diffHours = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
-    
-    if (!isVip && diffHours < 0.9) {
+
+    if (!hasNoAdvanceRestriction && diffHours < 0.9) {
       return new Response(JSON.stringify({ error: 'O agendamento requer antecedência mínima de 1 hora.' }), { status: 400 });
     }
 
