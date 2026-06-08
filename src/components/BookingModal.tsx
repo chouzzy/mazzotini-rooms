@@ -28,6 +28,11 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
   const [loading, setLoading] = useState(false);
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === 'ADMIN';
+  const userEmail = session?.user?.email?.toLowerCase() || '';
+  const hasNoAdvanceRestriction =
+    isAdmin ||
+    userEmail.includes('administrativo') ||
+    userEmail.includes('atendimento');
 
   const [title, setTitle] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -112,7 +117,7 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
 
   useEffect(() => {
     if (isOpen) {
-      setMinDateTime(getMinBookingDateTime());
+      setMinDateTime(hasNoAdvanceRestriction ? '' : getMinBookingDateTime());
       setGuests([]); setIsOnline(false); setStartTime(''); setEndTime(''); setTitle('');
       setSuggestion(null);
       setSelectedUserId(session?.user?.id || '');
@@ -174,8 +179,8 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
     if (new Date(endTime) <= new Date(startTime)) return toaster.create({ title: 'A hora de término deve ser após o início', type: 'error' });
     if (!session || !session.user || !session.user.id) return toaster.create({ title: 'Você precisa estar logado', type: 'error' });
 
-    // 🛡️ NOVA VALIDAÇÃO DE FRONTEND: Bloqueia quem tentar digitar no teclado burlando o calendário
-    if (new Date(startTime) < new Date(minDateTime)) {
+    // Validação de antecedência mínima — ignorada para admin, administrativo e atendimento
+    if (!hasNoAdvanceRestriction && minDateTime && new Date(startTime) < new Date(minDateTime)) {
       return toaster.create({
         title: 'Antecedência Mínima',
         description: 'O agendamento exige no mínimo 1h de antecedência (ou a partir das 10h30 do dia seguinte).',
@@ -365,11 +370,11 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
               <Flex gap={4} direction={{ base: 'column', sm: 'row' }}>
                 <Field.Root required flex={1}>
                   <Field.Label>Início</Field.Label>
-                  <Input type="datetime-local" value={startTime} min={minDateTime} onChange={(e) => { setStartTime(e.target.value); setSuggestion(null); }} />
+                  <Input type="datetime-local" value={startTime} min={hasNoAdvanceRestriction ? undefined : minDateTime} onChange={(e) => { setStartTime(e.target.value); setSuggestion(null); }} />
                 </Field.Root>
                 <Field.Root required flex={1}>
                   <Field.Label>Fim</Field.Label>
-                  <Input type="datetime-local" value={endTime} min={startTime || minDateTime} onChange={(e) => { setEndTime(e.target.value); setSuggestion(null); }} />
+                  <Input type="datetime-local" value={endTime} min={hasNoAdvanceRestriction ? undefined : (startTime || minDateTime)} onChange={(e) => { setEndTime(e.target.value); setSuggestion(null); }} />
                 </Field.Root>
               </Flex>
 
