@@ -27,8 +27,9 @@ export async function POST(request: Request) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const currentRoom = await prisma.room.findUnique({ where: { id: roomId } });
     const isVip = user?.isVip || false;
+    const isAdminRole = user?.role === 'ADMIN';
     const userEmail = user?.email?.toLowerCase() || '';
-    const hasNoAdvanceRestriction = isVip || userEmail.includes('administrativo') || userEmail.includes('atendimento');
+    const hasNoAdvanceRestriction = isVip || isAdminRole || userEmail.includes('administrativo') || userEmail.includes('atendimento');
 
     // Validação de Backend: Mínimo de 1h (exceto VIP, administrativo e atendimento)
     const now = new Date();

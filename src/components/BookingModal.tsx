@@ -115,9 +115,15 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
     return minDate.toISOString().slice(0, 16);
   };
 
+  // Atualiza minDateTime sempre que o modal abre ou a sessão carrega
   useEffect(() => {
     if (isOpen) {
       setMinDateTime(hasNoAdvanceRestriction ? '' : getMinBookingDateTime());
+    }
+  }, [isOpen, hasNoAdvanceRestriction]);
+
+  useEffect(() => {
+    if (isOpen) {
       setGuests([]); setIsOnline(false); setStartTime(''); setEndTime(''); setTitle('');
       setSuggestion(null);
       setSelectedUserId(session?.user?.id || '');

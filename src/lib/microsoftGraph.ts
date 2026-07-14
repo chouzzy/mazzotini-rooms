@@ -42,11 +42,18 @@ export async function getMicrosoftToken(): Promise<string> {
   return data.access_token;
 }
 
+// Converte Date UTC para string local BRT (UTC-3) sem sufixo Z
+// Graph API usa o campo timeZone para interpretar o datetime — não pode ter Z
+function toGraphDateTime(date: Date): string {
+  const brtDate = new Date(date.getTime() - 3 * 60 * 60 * 1000);
+  return brtDate.toISOString().slice(0, 19); // ex: "2026-07-14T12:00:00"
+}
+
 // 2. Helper para Criar Reunião no Teams e Calendário
 export async function createOnlineMeeting(
-  subject: string, 
-  startTime: Date, 
-  endTime: Date, 
+  subject: string,
+  startTime: Date,
+  endTime: Date,
   attendeeEmail?: string | null,
   guests?: { email: string; name?: string }[]
 ): Promise<OnlineMeeting> {
@@ -67,11 +74,11 @@ export async function createOnlineMeeting(
     const meetingData: any = {
       subject: subject,
       start: {
-        dateTime: startTime.toISOString(),
-        timeZone: "America/Sao_Paulo" // <-- MELHORIA: Forçar Fuso Horário Local
+        dateTime: toGraphDateTime(startTime),
+        timeZone: "America/Sao_Paulo"
       },
       end: {
-        dateTime: endTime.toISOString(),
+        dateTime: toGraphDateTime(endTime),
         timeZone: "America/Sao_Paulo"
       },
       // 📍 O TOQUE DE MESTRE: Endereço Físico do Escritório
