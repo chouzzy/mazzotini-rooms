@@ -75,11 +75,11 @@ export async function createOnlineMeeting(
       subject: subject,
       start: {
         dateTime: toGraphDateTime(startTime),
-        timeZone: "America/Sao_Paulo"
+        timeZone: "E. South America Standard Time"
       },
       end: {
         dateTime: toGraphDateTime(endTime),
-        timeZone: "America/Sao_Paulo"
+        timeZone: "E. South America Standard Time"
       },
       // 📍 O TOQUE DE MESTRE: Endereço Físico do Escritório
       location: {
