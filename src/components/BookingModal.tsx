@@ -28,11 +28,6 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
   const [loading, setLoading] = useState(false);
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === 'ADMIN';
-  const userEmail = session?.user?.email?.toLowerCase() || '';
-  const hasNoAdvanceRestriction =
-    isAdmin ||
-    userEmail.includes('administrativo') ||
-    userEmail.includes('atendimento');
 
   const [title, setTitle] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -74,8 +69,9 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
       const existing = new Date(startTime);
       target.setHours(existing.getHours(), existing.getMinutes(), 0, 0);
     } else if (daysFromNow === 0) {
-      const min = new Date(minDateTime);
-      target.setHours(min.getHours(), min.getMinutes(), 0, 0);
+      // Sem restrição: usa a hora atual + 5 min como padrão
+      const now = new Date();
+      target.setHours(now.getHours(), now.getMinutes() + 5, 0, 0);
     } else {
       target.setHours(10, 30, 0, 0);
     }
@@ -114,13 +110,6 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
     minDate.setMinutes(minDate.getMinutes() - minDate.getTimezoneOffset());
     return minDate.toISOString().slice(0, 16);
   };
-
-  // Atualiza minDateTime sempre que o modal abre ou a sessão carrega
-  useEffect(() => {
-    if (isOpen) {
-      setMinDateTime(hasNoAdvanceRestriction ? '' : getMinBookingDateTime());
-    }
-  }, [isOpen, hasNoAdvanceRestriction]);
 
   useEffect(() => {
     if (isOpen) {
@@ -184,15 +173,6 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
     if (!title || !startTime || !endTime) return toaster.create({ title: 'Preencha os campos', type: 'warning' });
     if (new Date(endTime) <= new Date(startTime)) return toaster.create({ title: 'A hora de término deve ser após o início', type: 'error' });
     if (!session || !session.user || !session.user.id) return toaster.create({ title: 'Você precisa estar logado', type: 'error' });
-
-    // Validação de antecedência mínima — ignorada para admin, administrativo e atendimento
-    if (!hasNoAdvanceRestriction && minDateTime && new Date(startTime) < new Date(minDateTime)) {
-      return toaster.create({
-        title: 'Antecedência Mínima',
-        description: 'O agendamento exige no mínimo 1h de antecedência (ou a partir das 10h30 do dia seguinte).',
-        type: 'error'
-      });
-    }
 
     setLoading(true);
     setSuggestion(null); // Limpa sugestão anterior
@@ -268,7 +248,7 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
               )}
 
               <Text fontSize="sm" color="fg.muted">
-                Preencha os dados abaixo. <strong>O prazo mínimo é de 1h.</strong>
+                Preencha os dados abaixo para solicitar sua reserva.
               </Text>
 
               <Field.Root required>
@@ -376,11 +356,11 @@ export default function BookingModal({ isOpen, onClose, selectedRoom, onSuccess 
               <Flex gap={4} direction={{ base: 'column', sm: 'row' }}>
                 <Field.Root required flex={1}>
                   <Field.Label>Início</Field.Label>
-                  <Input type="datetime-local" value={startTime} min={hasNoAdvanceRestriction ? undefined : minDateTime} onChange={(e) => { setStartTime(e.target.value); setSuggestion(null); }} />
+                  <Input type="datetime-local" value={startTime} onChange={(e) => { setStartTime(e.target.value); setSuggestion(null); }} />
                 </Field.Root>
                 <Field.Root required flex={1}>
                   <Field.Label>Fim</Field.Label>
-                  <Input type="datetime-local" value={endTime} min={hasNoAdvanceRestriction ? undefined : (startTime || minDateTime)} onChange={(e) => { setEndTime(e.target.value); setSuggestion(null); }} />
+                  <Input type="datetime-local" value={endTime} min={startTime || undefined} onChange={(e) => { setEndTime(e.target.value); setSuggestion(null); }} />
                 </Field.Root>
               </Flex>
 

@@ -146,16 +146,19 @@ export default function RoomCalendar() {
         }
       }
 
+      const description = e.resource.title || '-';
+
       return `
         <tr>
           <td style="text-align: center;">${dataFormatada}</td>
           <td style="text-align: center; font-weight: bold;">${startStr}</td>
           <td>${participant}</td>
+          <td>${description}</td>
           <td>${guestStr}</td>
           <td>${roomName}</td>
         </tr>
       `;
-    }).join('') : `<tr><td colSpan="5" style="text-align:center; padding: 20px; color: #64748b;">Nenhuma reunião agendada para este dia.</td></tr>`;
+    }).join('') : `<tr><td colSpan="6" style="text-align:center; padding: 20px; color: #64748b;">Nenhuma reunião agendada para este dia.</td></tr>`;
 
     // Template HTML idêntico à necessidade corporativa
     const htmlContent = `
@@ -194,11 +197,12 @@ export default function RoomCalendar() {
           <table>
             <thead>
               <tr>
-                <th width="12%">Data</th>
-                <th width="10%">Horário</th>
-                <th width="25%">Participante (Solicitante)</th>
-                <th width="33%">Convidado(s)</th>
-                <th width="20%">Sala</th>
+                <th width="10%">Data</th>
+                <th width="8%">Horário</th>
+                <th width="18%">Participante (Solicitante)</th>
+                <th width="24%">Descrição</th>
+                <th width="25%">Convidado(s)</th>
+                <th width="15%">Sala</th>
               </tr>
             </thead>
             <tbody>
